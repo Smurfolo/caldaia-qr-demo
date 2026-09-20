@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Genera etichette QR</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><strong>Caldaia</strong> · assistenza</div>
+    <a class="brand" href="index.html" style="text-decoration:none">← scanner</a>
+  </header>
+
+  <div class="card">
+    <h1>Etichette QR per caldaie</h1>
+    <p class="lede">Per caldaie vecchie senza QR di fabbrica: incolla le matricole (una per riga), genera un PDF con 9 codici per foglio, stampalo su etichette adesive e applicale.</p>
+
+    <label for="matricoleInput">Matricole</label>
+    <textarea id="matricoleInput" placeholder="CH-2019-0012&#10;CH-2019-0013&#10;CH-2020-0301&#10;…"></textarea>
+    <div class="count-hint" id="countHint">0 matricole — 0 fogli</div>
+
+    <label for="baseUrlInput">URL base scheda caldaia</label>
+    <input type="text" id="baseUrlInput">
+    <div class="count-hint">Il QR conterrà questo indirizzo + <code>?id=matricola</code>. Cambialo se pubblichi su un dominio diverso da questo.</div>
+
+    <button class="btn btn-primary btn-block" id="generaBtn" style="margin-top:16px">Genera PDF</button>
+  </div>
+
+  <div class="card" id="previewCard" style="display:none">
+    <h2>Anteprima (primi 9)</h2>
+    <div class="label-preview-grid" id="previewGrid"></div>
+  </div>
+
+  <footer class="note">
+    3×3 codici per foglio A4, pensato per fogli etichette adesive standard.<br>
+    Livello di correzione errori alto: restano leggibili anche se l'etichetta si sporca o si graffia.
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script>
+  const baseUrlInput = document.getElementById('baseUrlInput');
+  // auto-rileva l'indirizzo di questa stessa installazione
+  baseUrlInput.value = window.location.href.replace(/etichette\.html.*$/, 'caldaia.html');
+
+  const textarea = document.getElementById('matricoleInput');
+  const countHint = document.getElementById('countHint');
+
+  function parseMatricole() {
+    return [...new Set(
+      textarea.value.split('\n').map(s => s.trim()).filter(Boolean)
+    )];
+  }
+
+  function updateHint() {
+    const list = parseMatricole();
+    const fogli = Math.ceil(list.length / 9) || 0;
+    countHint.textContent = `${list.length} matricole — ${fogli} fogli${list.length ? '' : ''}`;
+  }
+  textarea.addEventListener('input', updateHint);
+  updateHint();
+
+  async function qrDataUrl(text) {
+    return QRCode.toDataURL(text, {
+      errorCorrectionLevel: 'H',
+      margin: 1,
+      width: 300
+    });
+  }
+
+  document.getElementById('generaBtn').addEventListener('click', async () => {
+    const list = parseMatricole();
+    if (!list.length) { alert('Inserisci almeno una matricola.'); return; }
+
+    const btn = document.getElementById('generaBtn');
+    btn.textContent = 'Genero…';
+    btn.disabled = true;
+
+    const baseUrl = baseUrlInput.value.trim().replace(/\?.*$/, '');
+    const items = await Promise.all(list.map(async m => ({
+      matricola: m,
+      dataUrl: await qrDataUrl(`${baseUrl}?id=${encodeURIComponent(m)}`)
+    })));
+
+    // --- anteprima ---
+    const previewGrid = document.getElementById('previewGrid');
+    previewGrid.innerHTML = items.slice(0, 9).map(it => `
+      <div class="cell">
+        <img src="${it.dataUrl}" alt="QR ${it.matricola}">
+        <span class="lbl">${it.matricola}</span>
+      </div>
+    `).join('');
+    document.getElementById('previewCard').style.display = 'block';
+
+    // --- PDF: A4, griglia 3x3 ---
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW = 210, pageH = 297;
+    const margin = 12;
+    const cols = 3, rows = 3;
+    const gap = 4;
+    const cellW = (pageW - margin * 2 - gap * (cols - 1)) / cols;
+    const cellH = (pageH - margin * 2 - gap * (rows - 1)) / rows;
+    const qrSize = Math.min(cellW, cellH) - 10;
+
+    items.forEach((it, i) => {
+      const perPage = cols * rows;
+      const posInPage = i % perPage;
+      if (i > 0 && posInPage === 0) doc.addPage();
+      const col = posInPage % cols;
+      const row = Math.floor(posInPage / cols);
+      const x = margin + col * (cellW + gap);
+      const y = margin + row * (cellH + gap);
+
+      // linee di taglio tratteggiate
+      doc.setDrawColor(180);
+      doc.setLineDashPattern([1, 1], 0);
+      doc.rect(x, y, cellW, cellH);
+
+      const qrX = x + (cellW - qrSize) / 2;
+      doc.addImage(it.dataUrl, 'PNG', qrX, y + 4, qrSize, qrSize);
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(9);
+      doc.text(it.matricola, x + cellW / 2, y + qrSize + 10, { align: 'center' });
+    });
+
+    doc.save('caldaie-etichette.pdf');
+    btn.textContent = 'Genera PDF';
+    btn.disabled = false;
+  });
+</script>
+</body>
+</html>
