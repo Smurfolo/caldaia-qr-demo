@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scheda caldaia</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><strong>Caldaia</strong> · assistenza</div>
+    <a class="brand" href="index.html" style="text-decoration:none">← scanner</a>
+  </header>
+
+  <div class="mode-toggle" id="modeToggle">
+    <button data-mode="utente" class="active">Utente finale</button>
+    <button data-mode="tecnico">Tecnico</button>
+  </div>
+
+  <div id="tecnicoLogin" style="display:none" class="card">
+    <label for="tecnicoSelect">Accedi come</label>
+    <select id="tecnicoSelect"></select>
+  </div>
+
+  <div id="content"></div>
+</div>
+
+<script src="app.js"></script>
+<script>
+const matricola = getParam('id');
+let mode = 'utente';
+
+// --- popola il login finto tecnico -------------------------------
+const db = getDb();
+const tecnicoSelect = document.getElementById('tecnicoSelect');
+db.tecnici.forEach(t => {
+  const centro = getCentro(t.centro_id);
+  const opt = document.createElement('option');
+  opt.value = t.centro_id;
+  opt.textContent = `${t.nome} — ${centro.nome}`;
+  tecnicoSelect.appendChild(opt);
+});
+
+document.querySelectorAll('#modeToggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#modeToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    mode = btn.dataset.mode;
+    document.getElementById('tecnicoLogin').style.display = mode === 'tecnico' ? 'block' : 'none';
+    render();
+  });
+});
+tecnicoSelect.addEventListener('change', render);
+
+// --- render --------------------------------------------------------
+function render() {
+  const content = document.getElementById('content');
+  if (!matricola) {
+    content.innerHTML = `<div class="card empty-state">Nessuna matricola indicata nell'URL.<br>Torna allo <a href="index.html">scanner</a>.</div>`;
+    return;
+  }
+  const caldaia = getCaldaia(matricola);
+  content.innerHTML = mode === 'utente' ? renderUtente(caldaia) : renderTecnico(caldaia);
+  attachHandlers(caldaia);
+}
+
+function renderUtente(caldaia) {
+  const registrata = caldaia && caldaia.centro_id;
+  let html = `<div class="card">
+    <h1>Caldaia <span class="matricola">${matricola}</span></h1>
+    ${registrata
+      ? `<span class="chip ok">Centro assistenza collegato</span>`
+      : `<span class="chip warn">Nessun centro collegato</span>`}
+  </div>`;
+
+  if (registrata) {
+    const centro = getCentro(caldaia.centro_id);
+    html += `<div class="card">
+      <h2>Il tuo centro assistenza</h2>
+      <div class="data-row"><span class="k">Centro</span><span class="v">${centro.nome}</span></div>
+      <div class="data-row"><span class="k">Zona</span><span class="v">${centro.comune}</span></div>
+      <div style="display:flex; gap:10px; margin-top:16px">
+        <a class="btn btn-primary" style="flex:1" href="mailto:${centro.email}">Scrivi</a>
+        <a class="btn btn-secondary" style="flex:1" href="tel:${centro.telefono.replace(/\s/g,'')}">Chiama</a>
+      </div>
+    </div>`;
+  } else {
+    html += `<div class="card">
+      <h2>Trova un centro assistenza vicino</h2>
+      <label for="capInput">Il tuo CAP</label>
+      <input type="text" id="capInput" placeholder="es. 36061" maxlength="5">
+      <button class="btn btn-secondary btn-block" id="cercaCapBtn" style="margin-top:12px">Cerca per CAP</button>
+      <button class="btn btn-secondary btn-block" id="usaPosizioneBtn" style="margin-top:8px">Usa la mia posizione</button>
+      <div id="risultatiCentri" style="margin-top:16px"></div>
+    </div>`;
+  }
+  return html;
+}
+
+function renderTecnico(caldaia) {
+  const centroLoggato = tecnicoSelect.value || db.tecnici[0].centro_id;
+  const tecnico = db.tecnici.find(t => t.centro_id === centroLoggato);
+  const centro = getCentro(centroLoggato);
+
+  let html = `<div class="card">
+    <h1>Caldaia <span class="matricola">${matricola}</span></h1>
+    <p class="lede" style="margin:6px 0 0">Accesso come <strong>${tecnico.nome}</strong> — ${centro.nome}</p>
+  </div>`;
+
+  if (!caldaia || !caldaia.centro_id) {
+    html += `<div class="card">
+      <h2>Prima accensione</h2>
+      <p class="lede">Questa matricola non risulta ancora in gestione. Compila i dati per prenderla in carico con ${centro.nome}.</p>
+      <label for="fNome">Nome cliente</label>
+      <input type="text" id="fNome" placeholder="Nome e cognome">
+      <label for="fPosizione">Indirizzo installazione</label>
+      <input type="text" id="fPosizione" placeholder="Via, città">
+      <label for="fTipo">Modello caldaia</label>
+      <input type="text" id="fTipo" placeholder="es. Baxi Luna Duo-Tec 28 kW">
+      <div class="field-row">
+        <div>
+          <label for="fInstall">Data installazione</label>
+          <input type="date" id="fInstall">
+        </div>
+        <div>
+          <label for="fAvvio">Data avviamento</label>
+          <input type="date" id="fAvvio">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="submitPrimaAccensione" style="margin-top:16px">Registra e prendi in gestione</button>
+    </div>`;
+    return html;
+  }
+
+  if (caldaia.centro_id !== centroLoggato) {
+    html += `<div class="card empty-state">
+      Questa caldaia è già in gestione da un altro centro assistenza.<br>Dati cliente non visibili.
+    </div>`;
+    return html;
+  }
+
+  const g = caldaia.garanzia || {};
+  html += `<div class="card">
+    <h2>Dati installazione</h2>
+    <div class="data-row"><span class="k">Cliente</span><span class="v">${caldaia.utente.nome}</span></div>
+    <div class="data-row"><span class="k">Indirizzo</span><span class="v">${caldaia.utente.posizione}</span></div>
+    <div class="data-row"><span class="k">Modello</span><span class="v">${caldaia.tipo}</span></div>
+    <div class="data-row"><span class="k">Installazione</span><span class="v">${formatData(caldaia.data_installazione)}</span></div>
+    <div class="data-row"><span class="k">Avviamento</span><span class="v">${formatData(caldaia.data_avviamento)}</span></div>
+    <div class="data-row"><span class="k">Garanzia estesa</span><span class="v">${g.attiva ? 'Attiva fino al ' + formatData(g.scadenza) : 'Non attiva'}</span></div>
+  </div>`;
+
+  html += `<div class="card">
+    <h2>Interventi</h2>
+    <div id="listaInterventi">
+      ${caldaia.interventi.length
+        ? caldaia.interventi.map(i => `<div class="intervento"><span>${i.tipo} — ${i.tecnico}</span><span class="data">${formatData(i.data)}</span></div>`).join('')
+        : `<div class="empty-state" style="padding:12px 0">Nessun intervento registrato.</div>`}
+    </div>
+    <button class="btn btn-secondary btn-block" id="aggiungiInterventoBtn" style="margin-top:14px">+ Registra intervento</button>
+  </div>`;
+
+  return html;
+}
+
+// --- event handlers per la vista corrente ---------------------------
+function attachHandlers(caldaia) {
+  const cercaCapBtn = document.getElementById('cercaCapBtn');
+  if (cercaCapBtn) {
+    cercaCapBtn.addEventListener('click', () => {
+      const cap = document.getElementById('capInput').value;
+      mostraRisultatiCentri(elencoCentriOrdinatiPerVicinanza(cap));
+    });
+  }
+
+  const usaPosizioneBtn = document.getElementById('usaPosizioneBtn');
+  if (usaPosizioneBtn) {
+    usaPosizioneBtn.addEventListener('click', () => {
+      if (!navigator.geolocation) { alert('Geolocalizzazione non disponibile su questo dispositivo.'); return; }
+      usaPosizioneBtn.textContent = 'Localizzazione…';
+      navigator.geolocation.getCurrentPosition(
+        pos => mostraRisultatiCentri(elencoCentriPerPosizione(pos.coords.latitude, pos.coords.longitude)),
+        () => { alert('Posizione non disponibile, prova con il CAP.'); usaPosizioneBtn.textContent = 'Usa la mia posizione'; }
+      );
+    });
+  }
+
+  const submitPrima = document.getElementById('submitPrimaAccensione');
+  if (submitPrima) {
+    submitPrima.addEventListener('click', () => {
+      const nomeCliente = document.getElementById('fNome').value.trim();
+      const posizione = document.getElementById('fPosizione').value.trim();
+      const tipo = document.getElementById('fTipo').value.trim();
+      const dataInstallazione = document.getElementById('fInstall').value;
+      const dataAvviamento = document.getElementById('fAvvio').value;
+      if (!nomeCliente || !posizione || !tipo || !dataInstallazione || !dataAvviamento) {
+        alert('Compila tutti i campi prima di registrare la caldaia.');
+        return;
+      }
+      registraPrimaAccensione(matricola, {
+        nomeCliente, posizione, tipo, dataInstallazione, dataAvviamento,
+        centro_id: tecnicoSelect.value
+      });
+      render();
+    });
+  }
+
+  const aggiungiInterventoBtn = document.getElementById('aggiungiInterventoBtn');
+  if (aggiungiInterventoBtn) {
+    aggiungiInterventoBtn.addEventListener('click', () => {
+      const tipo = prompt('Tipo di intervento (es. Manutenzione ordinaria):');
+      if (!tipo) return;
+      const tecnico = db.tecnici.find(t => t.centro_id === tecnicoSelect.value);
+      aggiungiIntervento(matricola, {
+        data: new Date().toISOString().slice(0, 10),
+        tipo,
+        tecnico: tecnico.nome
+      });
+      render();
+    });
+  }
+}
+
+function mostraRisultatiCentri(centri) {
+  const el = document.getElementById('risultatiCentri');
+  el.innerHTML = centri.slice(0, 3).map(c => `
+    <div class="card" style="background:var(--panel-raised); margin-bottom:10px">
+      <div class="data-row"><span class="k">${c.nome}</span><span class="v">${c.comune}</span></div>
+      <button class="btn btn-primary btn-block" style="margin-top:10px" data-centro="${c.id}">Collega questo centro</button>
+    </div>
+  `).join('');
+  el.querySelectorAll('button[data-centro]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      collegaCentro(matricola, btn.dataset.centro);
+      render();
+    });
+  });
+}
+
+render();
+</script>
+</body>
+</html>

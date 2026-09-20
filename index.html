@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scansiona la caldaia</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><strong>Caldaia</strong> · assistenza</div>
+  </header>
+
+  <div class="card">
+    <h1>Inquadra il QR sulla caldaia</h1>
+    <p class="lede">Ogni caldaia ha un codice univoco applicato in fabbrica o all'installazione. Scansionalo per vedere i dati o contattare l'assistenza.</p>
+
+    <div class="viewfinder">
+      <div id="reader"></div>
+      <div class="corner tl"></div>
+      <div class="corner tr"></div>
+      <div class="corner bl"></div>
+      <div class="corner br"></div>
+      <div class="status" id="scanStatus">Avvio fotocamera…</div>
+    </div>
+
+    <button class="btn btn-secondary btn-block" id="toggleCam">Disattiva fotocamera</button>
+  </div>
+
+  <div class="card">
+    <h2>Oppure inserisci il codice a mano</h2>
+    <label for="manualCode">Matricola caldaia</label>
+    <input type="text" id="manualCode" placeholder="es. CH-2024-0091">
+    <button class="btn btn-primary btn-block" style="margin-top:14px" id="goManual">Vai alla scheda</button>
+  </div>
+
+  <div class="card">
+    <h2>Demo rapida</h2>
+    <p class="lede" style="margin-bottom:12px">Due caldaie di esempio, per non dover stampare un QR mentre si prova il flusso.</p>
+    <div class="demo-links">
+      <a class="btn btn-secondary" href="caldaia.html?id=CH-2024-0091">
+        <span>CH-2024-0091</span>
+        <span class="chip ok">Centro collegato</span>
+      </a>
+      <a class="btn btn-secondary" href="caldaia.html?id=CH-2023-0044">
+        <span>CH-2023-0044</span>
+        <span class="chip warn">Da collegare</span>
+      </a>
+    </div>
+  </div>
+
+  <footer class="note">
+    Demo — dati salvati solo nel browser (localStorage).<br>
+    <a href="#" id="resetLink">Ripristina dati demo</a>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="app.js"></script>
+<script>
+  const statusEl = document.getElementById('scanStatus');
+  const toggleBtn = document.getElementById('toggleCam');
+  let scanner = null;
+  let camOn = false;
+
+  function goToId(rawText) {
+    let id = rawText.trim();
+    try {
+      const url = new URL(rawText);
+      const paramId = url.searchParams.get('id');
+      if (paramId) id = paramId;
+    } catch (e) {
+      // non era una URL, usiamo il testo così com'è
+    }
+    window.location.href = `caldaia.html?id=${encodeURIComponent(id)}`;
+  }
+
+  function startScanner() {
+    scanner = new Html5Qrcode('reader');
+    statusEl.textContent = 'In attesa di un codice…';
+    scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      (decodedText) => {
+        statusEl.textContent = 'Codice letto, apro la scheda…';
+        scanner.stop().then(() => goToId(decodedText)).catch(() => goToId(decodedText));
+      },
+      () => { /* scansione in corso, nessun match ancora: normale, non è un errore */ }
+    ).then(() => { camOn = true; toggleBtn.textContent = 'Disattiva fotocamera'; })
+     .catch(() => {
+        statusEl.textContent = 'Fotocamera non disponibile — usa l\'inserimento manuale qui sotto.';
+     });
+  }
+
+  function stopScanner() {
+    if (scanner && camOn) {
+      scanner.stop().then(() => {
+        camOn = false;
+        toggleBtn.textContent = 'Attiva fotocamera';
+        statusEl.textContent = 'Fotocamera disattivata.';
+      });
+    }
+  }
+
+  toggleBtn.addEventListener('click', () => {
+    if (camOn) stopScanner(); else startScanner();
+  });
+
+  document.getElementById('goManual').addEventListener('click', () => {
+    const val = document.getElementById('manualCode').value;
+    if (val.trim()) goToId(val);
+  });
+
+  document.getElementById('resetLink').addEventListener('click', (e) => {
+    e.preventDefault();
+    resetDb();
+    alert('Dati demo ripristinati.');
+  });
+
+  startScanner();
+</script>
+</body>
+</html>
