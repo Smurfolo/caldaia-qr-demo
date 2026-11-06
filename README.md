@@ -47,3 +47,12 @@ Per la demo il login è finto: un toggle "Utente finale / Tecnico" + una select 
 - Matricole demo: `CH-2024-0091` (collegata, 3 piani offerti), `CH-2023-0044` (non collegata), `AM-2022-0007` (altro marchio).
 - Login finto: tecnici Luca Rossi (master), Marco Neri (tecnico), Elena Verdi (master).
 - I dati demo usano una nuova chiave localStorage (`v2`): i dati della versione precedente non vengono letti.
+
+## Novità v3
+
+- Form di primo avviamento con consenso privacy (obbligatorio) e marketing (facoltativo); l'utente segue lo stato (inviata → accettata → avviata). Il link "informativa privacy" è un segnaposto da collegare al testo reale.
+- Il master vede in `configuratore.html` le richieste del proprio centro (con consenso marketing) e può accettarle o rifiutarle; se accettata, i dati precompilano la prima accensione del tecnico.
+- Promemoria di scadenza: prossima manutenzione (12 mesi dall'ultimo intervento) e garanzia, visibili a utente e tecnico; il master ha l'elenco delle scadenze entro 60 giorni.
+- Matricola non riconosciuta: messaggio dedicato. Le matricole generate in `etichette.html` vengono censite nel sistema (in demo, solo nel browser).
+- Tema chiaro/scuro (pulsante in alto a destra, `theme.js`), stile ispirato a Baxi: i colori sono approssimati, si cambiano nelle variabili in cima a `style.css`.
+- Chiave localStorage `v3`: i dati demo precedenti vengono azzerati.

@@ -1,5 +1,6 @@
 const matricola = getParam('id');
 const BRAND = window.BRAND || 'baxi';
+function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
 if (BRAND !== 'baxi') document.body.classList.add('brand-altro');
 let uView = 'home'; const uCtx = {};
 let mode = 'utente';
@@ -38,11 +39,21 @@ function render() {
   }
   const caldaia = getCaldaia(matricola);
   const banner = BRAND !== 'baxi' ? `<div class="brand-banner">Caldaia di altro marchio — servizio multimarca</div>` : '';
+  if (!caldaia) {
+    content.innerHTML = banner + `<div class="card"><span class="chip warn">Matricola non riconosciuta</span><h1 style="margin-top:12px">Codice <span class="matricola">${esc(matricola)}</span></h1><p class="lede">Non risulta nessuna caldaia con questo codice. Controlla di aver inquadrato il QR giusto o di aver digitato correttamente la matricola. Se l'etichetta è rovinata, rivolgiti a un centro assistenza.</p><a class="btn btn-primary btn-block" href="index.html">Torna allo scanner</a>${BRAND === 'baxi' ? '<a class="btn btn-secondary btn-block" style="margin-top:10px" href="https://www.baxi.it/supporto/centri-assistenza-autorizzati" target="_blank" rel="noopener">Trova un centro assistenza</a>' : ''}</div>`;
+    return;
+  }
   content.innerHTML = banner + (mode === 'utente' ? renderUtente(caldaia) : renderTecnico(caldaia));
   attachHandlers(caldaia);
 }
 
-const INFO = `<button class="info-btn" data-act="info" title="Come funziona">?</button><div class="hint" id="infoBox" style="display:none">Scegli il centro assistenza più vicino e lascia i tuoi dati. La richiesta arriva al centro, che la valuta e, una volta accettato il lavoro, ti ricontatta per fissare il primo avviamento. Nella demo i dati non vengono salvati.</div>`;
+function scadenzeHtml(c) {
+  const sm = statoScadenza(prossimaManutenzione(c)), sg = c.garanzia && c.garanzia.attiva ? statoScadenza(c.garanzia.scadenza) : null;
+  if (!sm && !sg) return '';
+  const row = (k, s) => `<div class="data-row"><span class="k">${k}</span><span class="v">${formatData(s.data)}<br><span class="chip ${s.cls}">${s.testo}</span></span></div>`;
+  return `<div class="card"><h2>Scadenze</h2>${sm ? row('Prossima manutenzione', sm) : ''}${sg ? row('Garanzia estesa', sg) : ''}</div>`;
+}
+const INFO = `<button class="info-btn" data-act="info" title="Come funziona">?</button><div class="hint" id="infoBox" style="display:none">Scegli il centro assistenza più vicino e lascia i tuoi dati. La richiesta arriva al centro, che la valuta e, una volta accettato il lavoro, ti ricontatta per fissare il primo avviamento. Nella demo i dati restano solo in questo browser.</div>`;
 const euro = p => p ? `€ ${p}/anno` : 'su richiesta';
 function renderUtente(caldaia) {
   const linked = caldaia && caldaia.centro_id;
@@ -61,8 +72,9 @@ function renderUtente(caldaia) {
     <label for="uMail">Email</label><input type="text" id="uMail">
     <label for="uInd">Indirizzo dell'impianto</label><input type="text" id="uInd">
     <label for="uNote">Note</label><input type="text" id="uNote" placeholder="es. orari preferiti">
+    <div class="svc-grid" style="margin-top:14px"><label><input type="checkbox" id="cPriv"><span>Ho letto l'<a href="#">informativa privacy</a> e acconsento al trattamento dei miei dati per gestire la richiesta *</span></label><label><input type="checkbox" id="cMkt"><span>Acconsento a ricevere comunicazioni commerciali (facoltativo)</span></label></div>
     <button class="btn btn-primary btn-block" data-act="invia-avvio" style="margin-top:16px">Invia richiesta</button>${back}</div>`;
-  if (uView === 'avvio-ok') return head + `<div class="card"><span class="chip ok">Richiesta inviata</span><p class="lede" style="margin-top:12px">${centro.nome} riceverà i tuoi dati e ti ricontatterà dopo aver accettato il lavoro. <em>(Demo: nessun dato salvato.)</em></p>${back}</div>`;
+  if (uView === 'avvio-ok') return head + `<div class="card"><span class="chip ok">Richiesta inviata</span><p class="lede" style="margin-top:12px">${centro.nome} riceverà i tuoi dati e ti ricontatterà dopo aver accettato il lavoro. Puoi seguire lo stato da questa pagina. <em>(Demo: dati salvati solo in questo browser.)</em></p>${back}</div>`;
   if (uView === 'guasto') return head + `<div class="card"><h2>Segnala un guasto</h2><p class="lede" style="margin-bottom:12px">Che codice errore vedi sul display?</p>
     ${Object.entries(ALBERI).map(([k, v]) => `<button class="btn btn-secondary btn-block" data-act="codice" data-code="${k}" style="margin-bottom:8px">${k} — ${v.nome}</button>`).join('')}
     <label for="codiceAltro">Altro codice o nessun codice</label><input type="text" id="codiceAltro" placeholder="es. E05">
@@ -79,12 +91,21 @@ function renderUtente(caldaia) {
     <button class="btn btn-primary btn-block" data-act="invia-guasto" style="margin-top:14px">Invia segnalazione</button>${back}</div>`;
   if (uView === 'guasto-ok') return head + `<div class="card"><span class="chip ok">Segnalazione inviata</span><p class="lede" style="margin-top:12px">${centro.nome} è stato avvisato.</p>${back}</div>`;
   // home
-  if (!linked) return head + `<div class="card"><h2>Primo avviamento ${INFO}</h2><p class="lede">Questa caldaia non è ancora collegata a un centro assistenza.</p><button class="btn btn-primary btn-block" data-act="avvio">Richiedi primo avviamento</button></div>`;
+  if (!linked) {
+    const rq = richiestaPerMatricola(matricola), rc = rq && getCentro(rq.centro_id);
+    if (rq && rq.stato !== 'rifiutata') {
+      const st = { 'in attesa': ['warn', `In attesa di risposta da ${rc.nome}`], accettata: ['ok', `Accettata: ${rc.nome} ti contatterà per fissare il primo avviamento`], completata: ['ok', 'Primo avviamento eseguito'] }[rq.stato];
+      const step = (t, on) => `<div class="step ${on ? 'on' : ''}">${t}</div>`;
+      return head + `<div class="card"><h2>Richiesta di primo avviamento</h2><span class="chip ${st[0]}">${st[1]}</span><div class="steps">${step('Inviata', true)}${step('Accettata', rq.stato !== 'in attesa')}${step('Avviata', rq.stato === 'completata')}</div><p class="count-hint">Inviata il ${formatData(rq.data)} a ${rc.nome}</p></div>`;
+    }
+    return head + (rq ? `<div class="card"><span class="chip warn">Richiesta rifiutata da ${rc.nome}</span><p class="lede" style="margin:10px 0 0">Puoi sceglierne un altro.</p></div>` : '') + `<div class="card"><h2>Primo avviamento ${INFO}</h2><p class="lede">Questa caldaia non è ancora collegata a un centro assistenza.</p><button class="btn btn-primary btn-block" data-act="avvio">Richiedi primo avviamento</button></div>`;
+  }
   let html = head + `<div class="card"><h2>Il tuo centro assistenza</h2>
     <div class="data-row"><span class="k">Centro</span><span class="v">${centro.nome}</span></div>
     <div class="data-row"><span class="k">Zona</span><span class="v">${centro.comune}</span></div>
     <div style="display:flex; gap:10px; margin-top:16px"><a class="btn btn-primary" style="flex:1" href="mailto:${centro.email}">Scrivi</a><a class="btn btn-secondary" style="flex:1" href="tel:${centro.telefono.replace(/\s/g, '')}">Chiama</a></div>
     <button class="btn btn-secondary btn-block" data-act="guasto" style="margin-top:10px">Segnala un guasto</button></div>`;
+  html += scadenzeHtml(caldaia);
   const piani = centro.piani || [], pa = piani.find(p => p.id === caldaia.piano_attivo), pr = piani.find(p => p.id === (caldaia.richiesta_piano || {}).piano_id);
   if (pa) html += `<div class="card"><h2>Il tuo piano di manutenzione</h2><span class="chip ok">${pa.nome} attivo</span><p class="lede" style="margin:10px 0 0">${pa.servizi.join(' · ')}</p></div>`;
   else if (pr) html += `<div class="card"><h2>Piano di manutenzione</h2><span class="chip warn">Richiesta "${pr.nome}" in attesa di conferma</span></div>`;
@@ -98,8 +119,15 @@ function handleAct(act, b) {
   if (act === 'info') { const x = document.getElementById('infoBox'); x.style.display = x.style.display === 'none' ? 'block' : 'none'; return; }
   if (act === 'home') uView = 'home';
   else if (act === 'avvio') uView = 'avvio-centri';
-  else if (act === 'invia-avvio') { if (!val('uNome').trim() || !val('uTel').trim()) { alert('Nome e telefono sono obbligatori.'); return; } uView = 'avvio-ok'; }
+  else if (act === 'invia-avvio') {
+    if (!val('uNome').trim() || !val('uTel').trim()) { alert('Nome e telefono sono obbligatori.'); return; }
+    if (!document.getElementById('cPriv').checked) { alert('Per inviare la richiesta devi acconsentire al trattamento dei dati.'); return; }
+    creaRichiestaAvvio({ matricola, centro_id: uCtx.centro, nome: val('uNome').trim(), telefono: val('uTel').trim(), email: val('uMail').trim(), indirizzo: val('uInd').trim(), note: val('uNote').trim(), privacy: true, marketing: document.getElementById('cMkt').checked });
+    uView = 'avvio-ok';
+  }
   else if (act === 'piano') richiediPiano(matricola, b.dataset.id);
+  else if (act === 'conferma-piano') mutaCaldaia(matricola, c => { c.piano_attivo = c.richiesta_piano.piano_id; c.richiesta_piano = null; });
+  else if (act === 'rifiuta-piano') mutaCaldaia(matricola, c => { c.richiesta_piano = null; });
   else if (act === 'guasto') uView = 'guasto';
   else if (act === 'codice') { uCtx.code = b.dataset.code; uCtx.node = ALBERI[uCtx.code].start; uView = 'albero'; }
   else if (act === 'codice-altro') { uCtx.code = val('codiceAltro').trim().toUpperCase() || 'N/D'; if (ALBERI[uCtx.code]) { uCtx.node = ALBERI[uCtx.code].start; uView = 'albero'; } else uView = 'invia-guasto'; }
@@ -122,13 +150,14 @@ function renderTecnico(caldaia) {
   if (tecnico.ruolo === 'master') html += `<div class="card"><h2>Area master</h2><a class="btn btn-secondary btn-block" href="configuratore.html">Configuratore manutenzione →</a></div>`;
 
   if (!caldaia || !caldaia.centro_id) {
+    const rqA = (() => { const r = richiestaPerMatricola(matricola); return r && r.centro_id === centroLoggato && r.stato === 'accettata' ? r : null; })() || {};
     html += `<div class="card">
       <h2>Prima accensione</h2>
-      <p class="lede">Questa matricola non risulta ancora in gestione. Compila i dati per prenderla in carico con ${centro.nome}.</p>
+      <p class="lede">Questa matricola non risulta ancora in gestione. Compila i dati per prenderla in carico con ${centro.nome}.${rqA.nome ? ' Dati precompilati dalla richiesta del cliente.' : ''}</p>
       <label for="fNome">Nome cliente</label>
-      <input type="text" id="fNome" placeholder="Nome e cognome">
+      <input type="text" id="fNome" placeholder="Nome e cognome" value="${esc(rqA.nome)}">
       <label for="fPosizione">Indirizzo installazione</label>
-      <input type="text" id="fPosizione" placeholder="Via, città">
+      <input type="text" id="fPosizione" placeholder="Via, città" value="${esc(rqA.indirizzo)}">
       <label for="fTipo">Modello caldaia</label>
       <input type="text" id="fTipo" placeholder="es. Baxi Luna Duo-Tec 28 kW">
       <div class="field-row">
@@ -164,6 +193,7 @@ function renderTecnico(caldaia) {
     <div class="data-row"><span class="k">Garanzia estesa</span><span class="v">${g.attiva ? 'Attiva fino al ' + formatData(g.scadenza) : 'Non attiva'}</span></div>
   </div>`;
 
+  html += scadenzeHtml(caldaia);
   html += `<div class="card">
     <h2>Interventi</h2>
     <div id="listaInterventi">
@@ -173,6 +203,17 @@ function renderTecnico(caldaia) {
     </div>
     <button class="btn btn-secondary btn-block" id="aggiungiInterventoBtn" style="margin-top:14px">+ Registra intervento</button>
   </div>`;
+
+  const piani = centro.piani || [], rq = caldaia.richiesta_piano;
+  const pa = piani.find(p => p.id === caldaia.piano_attivo), pr = rq && piani.find(p => p.id === rq.piano_id);
+  html += `<div class="card"><h2>Piano di manutenzione</h2>` + (pa
+    ? `<span class="chip ok">${pa.nome} attivo</span><p class="lede" style="margin:10px 0 0">Intervento entro ${pa.tempo} · ${euro(pa.prezzo)}</p>`
+    : pr ? `<span class="chip warn">Richiesta "${pr.nome}" del ${formatData(rq.data)}</span><div style="display:flex;gap:10px;margin-top:12px"><button class="btn btn-primary" style="flex:1" data-act="conferma-piano">Conferma attivazione</button><button class="btn btn-secondary" style="flex:1" data-act="rifiuta-piano">Rifiuta</button></div>`
+    : `<p class="lede" style="margin:0">Nessun piano attivo né richieste in attesa.</p>`) + `</div>`;
+  const seg = (caldaia.segnalazioni || []).slice().reverse();
+  html += `<div class="card"><h2>Segnalazioni guasto</h2>` + (seg.length
+    ? seg.map(g => `<div class="intervento"><span>${g.codice} — ${g.stato}${g.descrizione ? '<br><small>' + g.descrizione + '</small>' : ''}${g.contatto ? '<br><small>Tel. ' + g.contatto + '</small>' : ''}</span><span class="data">${formatData(g.data)}</span></div>`).join('')
+    : `<div class="empty-state" style="padding:12px 0">Nessuna segnalazione.</div>`) + `</div>`;
 
   return html;
 }

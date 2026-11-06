@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Genera etichette QR</title>
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -85,7 +86,7 @@
     const downloadLink = document.getElementById('downloadLink');
     const errorEl = document.getElementById('genError');
     downloadLink.style.display = 'none';
-    errorEl.style.display = 'none';
+    errorEl.style.display = 'none'; errorEl.style.color = 'var(--warn)';
     btn.textContent = 'Genero…';
     btn.disabled = true;
 
@@ -151,6 +152,8 @@
       downloadLink.href = url;
       downloadLink.textContent = `Scarica il PDF (${items.length} etichette, ${nPagine} fogli)`;
       downloadLink.style.display = 'block';
+      const nuove = registraMatricole(list, brand);
+      errorEl.style.color = 'var(--text-dim)'; errorEl.textContent = `${nuove} matricole nuove censite nel sistema (demo: solo in questo browser).`; errorEl.style.display = 'block';
     } catch (err) {
       console.error(err);
       errorEl.textContent = 'Generazione PDF non riuscita: ' + err.message;

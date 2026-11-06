@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Configuratore manutenzione</title>
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -13,23 +14,49 @@
     <a class="brand" href="index.html" style="text-decoration:none">← home</a>
   </header>
   <div class="card"><label for="who">Accedi come (login finto)</label><select id="who"></select></div>
+  <div id="reqs"></div>
+  <div id="due"></div>
   <div id="main"></div>
+  <div id="team"></div>
 </div>
 <script src="app.js"></script>
 <script>
-const db = getDb(), who = document.getElementById('who'), main = document.getElementById('main');
-db.tecnici.forEach(t => who.add(new Option(`${t.nome} (${t.ruolo}) — ${getCentro(t.centro_id).nome}`, t.id)));
-who.value = localStorage.getItem('caldaia_demo_tecnico') || db.tecnici[0].id;
-if (!who.value) who.value = db.tecnici[0].id;
+const who = document.getElementById('who'), main = document.getElementById('main'), team = document.getElementById('team'), reqs = document.getElementById('reqs'), due = document.getElementById('due');
+const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+function fillWho(keep) {
+  const d = getDb(); who.innerHTML = '';
+  d.tecnici.forEach(t => who.add(new Option(`${t.nome} (${t.ruolo}) — ${getCentro(t.centro_id).nome}`, t.id)));
+  who.value = keep; if (!who.value) who.value = d.tecnici[0].id;
+}
+fillWho(localStorage.getItem('caldaia_demo_tecnico'));
 who.addEventListener('change', () => { localStorage.setItem('caldaia_demo_tecnico', who.value); load(); });
 let piani = [], centroId = null;
 
 function load() {
-  const t = db.tecnici.find(x => x.id === who.value);
-  if (t.ruolo !== 'master') { main.innerHTML = '<div class="card empty-state">Il configuratore è riservato ai master del centro.</div>'; return; }
+  const t = getDb().tecnici.find(x => x.id === who.value);
+  if (t.ruolo !== 'master') { team.innerHTML = reqs.innerHTML = due.innerHTML = ''; main.innerHTML = '<div class="card empty-state">Il configuratore è riservato ai master del centro.</div>'; return; }
   centroId = t.centro_id;
   piani = JSON.parse(JSON.stringify(getCentro(centroId).piani || []));
-  draw();
+  draw(); drawTeam(); drawReqs(); drawDue();
+}
+function drawReqs() {
+  const l = (getDb().richieste_avvio || []).filter(r => r.centro_id === centroId).reverse(), cls = { 'in attesa': 'warn', accettata: 'ok', completata: 'ok', rifiutata: 'warn' };
+  reqs.innerHTML = `<div class="card"><h2>Richieste di primo avviamento</h2>` + (l.length ? l.map(r => `<div class="plan"><div class="data-row"><strong>${esc(r.nome)}</strong><span class="chip ${cls[r.stato]}">${r.stato}</span></div><div class="count-hint" style="margin:0 0 8px">${esc(r.matricola)} · ${formatData(r.data)}<br>${esc(r.telefono)}${r.email ? ' · ' + esc(r.email) : ''}${r.indirizzo ? '<br>' + esc(r.indirizzo) : ''}${r.note ? '<br><em>' + esc(r.note) + '</em>' : ''}<br>Consenso marketing: ${r.marketing ? 'sì' : 'no'}</div>` + (r.stato === 'in attesa' ? `<div style="display:flex;gap:10px"><button class="btn btn-primary" style="flex:1" data-rq="accettata" data-id="${r.id}">Accetta</button><button class="btn btn-secondary" style="flex:1" data-rq="rifiutata" data-id="${r.id}">Rifiuta</button></div>` : '') + `</div>`).join('') : `<div class="empty-state" style="padding:12px 0">Nessuna richiesta.</div>`) + `</div>`;
+}
+function drawDue() {
+  const rows = [];
+  Object.values(getDb().caldaie).filter(c => c.centro_id === centroId).forEach(c => {
+    const pm = prossimaManutenzione(c); if (pm) rows.push({ c, tipo: 'Manutenzione', s: statoScadenza(pm) });
+    if (c.garanzia && c.garanzia.attiva && c.garanzia.scadenza) rows.push({ c, tipo: 'Garanzia', s: statoScadenza(c.garanzia.scadenza) });
+  });
+  const l = rows.filter(r => r.s.giorni <= 60).sort((a, b) => a.s.giorni - b.s.giorni);
+  due.innerHTML = `<div class="card"><h2>Scadenze nei prossimi 60 giorni</h2>` + (l.length ? l.map(r => `<div class="intervento"><span><a href="${BRANDS[r.c.marchio || 'baxi'].page}?id=${encodeURIComponent(r.c.matricola)}">${esc(r.c.matricola)}</a> — ${r.tipo}${r.c.utente ? '<br><small>' + esc(r.c.utente.nome) + '</small>' : ''}</span><span class="chip ${r.s.cls}">${r.s.testo}</span></div>`).join('') : `<div class="empty-state" style="padding:12px 0">Nessuna scadenza imminente.</div>`) + `</div>`;
+}
+reqs.addEventListener('click', e => { const b = e.target.closest('[data-rq]'); if (b) { aggiornaRichiesta(b.dataset.id, b.dataset.rq); drawReqs(); } });
+function drawTeam() {
+  const d = getDb(), me = who.value, mem = d.tecnici.filter(t => t.centro_id === centroId);
+  team.innerHTML = `<div class="card"><h2>Team del centro</h2>` + mem.map(t => `<div class="data-row" style="align-items:center"><span>${t.nome}${t.id === me ? ' (tu)' : ''}</span><span style="display:flex;gap:6px"><select data-role="${t.id}" style="width:auto" ${t.id === me ? 'disabled' : ''}><option ${t.ruolo === 'tecnico' ? 'selected' : ''}>tecnico</option><option ${t.ruolo === 'master' ? 'selected' : ''}>master</option></select><button class="btn btn-secondary" data-rm="${t.id}" ${t.id === me ? 'disabled' : ''}>Rimuovi</button></span></div>`).join('') +
+    `<label>Nuovo membro</label><div class="field-row"><div><input type="text" id="newName" placeholder="Nome e cognome"></div><div><select id="newRole"><option>tecnico</option><option>master</option></select></div></div><button class="btn btn-primary btn-block" id="addTech" style="margin-top:12px">Aggiungi al team</button><div class="count-hint">Non puoi modificare o rimuovere te stesso.</div></div>`;
 }
 function draw() {
   main.innerHTML = `<div class="card"><h1>Piani di manutenzione</h1><p class="lede" style="margin:0">${getCentro(centroId).nome} — fino a 3 configurazioni, visibili agli utenti senza piano.</p></div>` +
@@ -52,6 +79,17 @@ main.addEventListener('click', e => {
   if (t.dataset.del !== undefined) { piani.splice(t.dataset.del, 1); draw(); }
   else if (t.id === 'add') { piani.push({ id: 'p' + Date.now(), nome: 'Nuovo piano', servizi: [SERVIZI[0]], tempo: TEMPI[1], prezzo: null }); draw(); }
   else if (t.id === 'save') { salvaPiani(centroId, piani); document.getElementById('msg').textContent = 'Salvato. Gli utenti vedono ora queste offerte.'; }
+});
+function mutaTeam(fn) { const d = getDb(); fn(d); saveDb(d); fillWho(who.value); drawTeam(); }
+team.addEventListener('change', e => { const id = e.target.dataset.role; if (id) mutaTeam(d => { d.tecnici.find(t => t.id === id).ruolo = e.target.value; }); });
+team.addEventListener('click', e => {
+  const rm = e.target.dataset.rm;
+  if (rm && confirm('Rimuovere questo membro dal team?')) mutaTeam(d => { d.tecnici = d.tecnici.filter(t => t.id !== rm); });
+  else if (e.target.id === 'addTech') {
+    const nome = document.getElementById('newName').value.trim(); if (!nome) { alert('Inserisci il nome.'); return; }
+    const ruolo = document.getElementById('newRole').value;
+    mutaTeam(d => d.tecnici.push({ id: 't' + Date.now(), nome, centro_id: centroId, ruolo }));
+  }
 });
 load();
 </script>

@@ -7,7 +7,7 @@
    to change, they only call these functions.
 ------------------------------------------------------------------ */
 
-const DB_KEY = 'caldaie_qr_demo_v2';
+const DB_KEY = 'caldaie_qr_demo_v3';
 
 const SEED = {
   centri: [
@@ -140,8 +140,9 @@ function collegaCentro(matricola, centroId) {
 
 function registraPrimaAccensione(matricola, dati) {
   const db = getDb();
+  const prev = db.caldaie[matricola] || {};
   db.caldaie[matricola] = {
-    matricola,
+    matricola, marchio: prev.marchio || 'baxi', piano_attivo: null, richiesta_piano: null, segnalazioni: [],
     tipo: dati.tipo,
     centro_id: dati.centro_id,
     utente: { nome: dati.nomeCliente, posizione: dati.posizione },
@@ -150,6 +151,7 @@ function registraPrimaAccensione(matricola, dati) {
     interventi: [],
     garanzia: { attiva: false, scadenza: null }
   };
+  (db.richieste_avvio || []).filter(r => r.matricola === matricola && r.stato === 'accettata').forEach(r => { r.stato = 'completata'; });
   saveDb(db);
 }
 
@@ -212,3 +214,25 @@ function mutaCaldaia(m, fn) { const db = getDb(); if (db.caldaie[m]) { fn(db.cal
 function richiediPiano(m, id) { mutaCaldaia(m, c => { c.richiesta_piano = { piano_id: id, data: new Date().toISOString().slice(0, 10) }; }); }
 function aggiungiSegnalazione(m, s) { mutaCaldaia(m, c => { (c.segnalazioni = c.segnalazioni || []).push({ data: new Date().toISOString().slice(0, 10), ...s }); }); }
 function salvaPiani(centroId, piani) { const db = getDb(); db.centri.find(c => c.id === centroId).piani = piani; saveDb(db); }
+
+/* ---- v3: richieste avviamento, scadenze, matricole censite ---- */
+SEED.richieste_avvio = [];
+const GIORNO = 864e5;
+const isoOff = g => new Date(Date.now() + g * GIORNO).toISOString().slice(0, 10);
+SEED.caldaie['CH-2024-0091'].interventi[1].data = isoOff(-350);
+Object.assign(SEED.caldaie['AM-2022-0007'], { interventi: [{ data: isoOff(-200), tipo: 'Manutenzione ordinaria', tecnico: 'Elena Verdi' }], garanzia: { attiva: true, scadenza: isoOff(40) } });
+function addMonths(iso, n) { const d = new Date(iso + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 10); }
+function giorniA(iso) { return Math.round((Date.parse(iso + 'T00:00:00Z') - Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z')) / GIORNO); }
+function prossimaManutenzione(c) { const ref = (c.interventi || []).map(i => i.data).sort().pop() || c.data_avviamento; return ref ? addMonths(ref, 12) : null; }
+function statoScadenza(iso) {
+  if (!iso) return null; const g = giorniA(iso);
+  return { data: iso, giorni: g, cls: g <= 60 ? 'warn' : 'ok', testo: g < 0 ? `scaduta da ${-g} giorni` : g === 0 ? 'scade oggi' : `tra ${g} giorni` };
+}
+function creaRichiestaAvvio(r) { const db = getDb(); db.richieste_avvio = db.richieste_avvio || []; const x = { id: 'r' + Date.now(), data: new Date().toISOString().slice(0, 10), stato: 'in attesa', ...r }; db.richieste_avvio.push(x); saveDb(db); return x; }
+function richiestaPerMatricola(m) { const l = (getDb().richieste_avvio || []).filter(r => r.matricola === m); return l.length ? l[l.length - 1] : null; }
+function aggiornaRichiesta(id, stato) { const db = getDb(), r = (db.richieste_avvio || []).find(x => x.id === id); if (r) { r.stato = stato; saveDb(db); } }
+function registraMatricole(list, marchio) {
+  const db = getDb(); let n = 0;
+  list.forEach(m => { if (!db.caldaie[m]) { db.caldaie[m] = { matricola: m, marchio, tipo: null, centro_id: null, utente: null, data_installazione: null, data_avviamento: null, interventi: [], garanzia: { attiva: false, scadenza: null }, piano_attivo: null, richiesta_piano: null, segnalazioni: [] }; n++; } });
+  saveDb(db); return n;
+}
