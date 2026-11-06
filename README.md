@@ -22,7 +22,7 @@ Demo statica, nessun backend: tutti i dati vivono in `localStorage`, seedati al 
 Ogni QR dovrebbe incapsulare l'URL completo, non solo la matricola:
 
 ```
-https://<utente>.github.io/<repo>/caldaia.html?id=CH-2024-0091
+https://smurfolo.github.io/caldaia-qr-demo/caldaia.html?id=CH-2024-0091
 ```
 
 Così basta inquadrarlo con la fotocamera di qualsiasi telefono (senza passare dalla pagina scanner) per arrivare direttamente alla scheda. La pagina scanner (`index.html`) serve soprattutto in fase di test/demo o per un uso interno da centralino.
