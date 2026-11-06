@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scheda caldaia</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><strong>Caldaia</strong> · assistenza</div>
+    <a class="brand" href="index.html" style="text-decoration:none">← scanner</a>
+  </header>
+
+  <div class="mode-toggle" id="modeToggle">
+    <button data-mode="utente" class="active">Utente finale</button>
+    <button data-mode="tecnico">Tecnico</button>
+  </div>
+
+  <div id="tecnicoLogin" style="display:none" class="card">
+    <label for="tecnicoSelect">Accedi come</label>
+    <select id="tecnicoSelect"></select>
+  </div>
+
+  <div id="content"></div>
+</div>
+
+<script>window.BRAND="altro";</script>
+<script src="app.js"></script>
+<script src="caldaia.js"></script>
+</body>
+</html>

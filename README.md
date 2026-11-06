@@ -36,3 +36,14 @@ Per la demo il login è finto: un toggle "Utente finale / Tecnico" + una select 
 - I dati sono per-browser: non si vedono aggiornamenti fatti da un altro dispositivo (serve un backend vero per quello).
 - La "vicinanza per CAP" è una simulazione (primi due numeri del CAP), non geocoding reale.
 - Nessuna validazione lato server, ovviamente.
+
+## Novità v2
+
+- `caldaia.js` — logica condivisa delle landing; `caldaia.html` (Baxi) e `altro-marchio.html` (tema colori diverso + banner) la usano entrambe.
+- `configuratore.html` — solo ruolo **master**: fino a 3 piani di manutenzione (servizi, tempo di risposta, prezzo). Gli utenti su caldaie senza piano li vedono e possono richiederne l'attivazione.
+- Utente senza centro: "Richiedi primo avviamento" → scelta centro → form (in demo non salva).
+- Utente con centro: "Segnala un guasto" con alberi di risoluzione demo per E10, E01, E02 (testi indicativi, da sostituire con i codici ufficiali del costruttore; in `ALBERI` dentro `app.js`).
+- Etichette: selezione marchio, il QR punta alla landing del marchio scelto.
+- Matricole demo: `CH-2024-0091` (collegata, 3 piani offerti), `CH-2023-0044` (non collegata), `AM-2022-0007` (altro marchio).
+- Login finto: tecnici Luca Rossi (master), Marco Neri (tecnico), Elena Verdi (master).
+- I dati demo usano una nuova chiave localStorage (`v2`): i dati della versione precedente non vengono letti.

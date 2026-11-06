@@ -10,7 +10,7 @@
 <div class="wrap">
   <header class="top">
     <div class="brand"><strong>Caldaia</strong> · assistenza</div>
-    <a class="brand" href="etichette.html" style="text-decoration:none">genera etichette →</a>
+    
   </header>
 
   <div class="card">
@@ -52,6 +52,18 @@
         <span>CH-2023-0044</span>
         <span class="chip warn">Da collegare</span>
       </a>
+      <a class="btn btn-secondary" href="altro-marchio.html?id=AM-2022-0007">
+        <span>AM-2022-0007</span>
+        <span class="chip ok">Altro marchio</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Area centro assistenza (demo)</h2>
+    <div class="demo-links">
+      <a class="btn btn-secondary" href="etichette.html">Genera etichette QR</a>
+      <a class="btn btn-secondary" href="configuratore.html">Configuratore manutenzione (master)</a>
     </div>
   </div>
 
@@ -71,15 +83,17 @@
   let camOn = false;
 
   function goToId(rawText) {
-    let id = rawText.trim();
+    let id = rawText.trim(), page = 'caldaia.html';
     try {
       const url = new URL(rawText);
       const paramId = url.searchParams.get('id');
       if (paramId) id = paramId;
+      const last = url.pathname.split('/').pop();
+      if (['caldaia.html', 'altro-marchio.html'].includes(last)) page = last;
     } catch (e) {
       // non era una URL, usiamo il testo così com'è
     }
-    window.location.href = `caldaia.html?id=${encodeURIComponent(id)}`;
+    window.location.href = `${page}?id=${encodeURIComponent(id)}`;
   }
 
   function startScanner() {

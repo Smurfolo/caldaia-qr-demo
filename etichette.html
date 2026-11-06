@@ -21,6 +21,9 @@
     <textarea id="matricoleInput" placeholder="CH-2019-0012&#10;CH-2019-0013&#10;CH-2020-0301&#10;…"></textarea>
     <div class="count-hint" id="countHint">0 matricole — 0 fogli</div>
 
+    <label for="brandSel">Marchio</label>
+    <select id="brandSel"><option value="baxi">Baxi (landing standard)</option><option value="altro">Altro marchio (landing multimarca)</option></select>
+
     <label for="baseUrlInput">URL base scheda caldaia</label>
     <input type="text" id="baseUrlInput">
     <div class="count-hint">Il QR conterrà questo indirizzo + <code>?id=matricola</code>. Cambialo se pubblichi su un dominio diverso da questo.</div>
@@ -41,6 +44,7 @@
   </footer>
 </div>
 
+<script src="app.js"></script>
 <script src="vendor/qrcode.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script>
@@ -89,7 +93,8 @@
       if (typeof QRCode === 'undefined') throw new Error('vendor/qrcode.js non trovato — assicurati che la cartella "vendor" sia stata caricata insieme alle pagine HTML.');
       if (!window.jspdf) throw new Error('vendor/jspdf.umd.min.js non trovato — assicurati che la cartella "vendor" sia stata caricata insieme alle pagine HTML.');
 
-      const baseUrl = baseUrlInput.value.trim().replace(/\?.*$/, '');
+      const brand = document.getElementById('brandSel').value;
+      const baseUrl = baseUrlInput.value.trim().replace(/\?.*$/, '').replace(/[^\/]*$/, BRANDS[brand].page);
       const items = await Promise.all(list.map(async m => ({
         matricola: m,
         dataUrl: await qrDataUrl(`${baseUrl}?id=${encodeURIComponent(m)}`)
@@ -134,6 +139,7 @@
         doc.setFont('courier', 'normal');
         doc.setFontSize(9);
         doc.text(it.matricola, x + cellW / 2, y + qrSize + 10, { align: 'center' });
+        if (brand !== 'baxi') { doc.setFontSize(7); doc.text(BRANDS[brand].nome, x + cellW / 2, y + qrSize + 14, { align: 'center' }); }
       });
 
       // Non chiamiamo doc.save() direttamente: dopo un'attesa asincrona molti

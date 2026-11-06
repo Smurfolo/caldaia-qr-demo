@@ -350,3 +350,14 @@ footer.note {
   margin-top: 24px;
   line-height: 1.6;
 }
+
+/* --- v2 --- */
+body.brand-altro { --bg: #231B3A; --panel: #2E2548; --panel-raised: #3A305A; --border: #51457A; --flame: #4FD1C5; --steel: #A99BE0; }
+body.brand-altro .btn-primary { color: #14202B; }
+.brand-banner { background: var(--flame); color: #14202B; font-size: 13px; font-weight: 600; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; text-align: center; }
+.info-btn { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); background: transparent; color: var(--text-dim); font-size: 12px; font-weight: 700; padding: 0; margin-left: 6px; cursor: pointer; vertical-align: middle; }
+.hint { background: var(--panel-raised); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--text-dim); line-height: 1.5; margin: 10px 0 14px; font-weight: 400; }
+.plan { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; background: var(--panel-raised); }
+.plan ul { margin: 0 0 12px; padding-left: 18px; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.svc-grid label { display: flex; gap: 8px; align-items: center; margin: 6px 0; color: var(--text); font-size: 13px; }
+.svc-grid input { width: auto; }

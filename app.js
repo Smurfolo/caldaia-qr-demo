@@ -7,7 +7,7 @@
    to change, they only call these functions.
 ------------------------------------------------------------------ */
 
-const DB_KEY = 'caldaie_qr_demo_v1';
+const DB_KEY = 'caldaie_qr_demo_v2';
 
 const SEED = {
   centri: [
@@ -74,13 +74,13 @@ function getDb() {
   const raw = localStorage.getItem(DB_KEY);
   if (!raw) {
     localStorage.setItem(DB_KEY, JSON.stringify(SEED));
-    return structuredClone(SEED);
+    return JSON.parse(JSON.stringify(SEED));
   }
   try {
     return JSON.parse(raw);
   } catch (e) {
     localStorage.setItem(DB_KEY, JSON.stringify(SEED));
-    return structuredClone(SEED);
+    return JSON.parse(JSON.stringify(SEED));
   }
 }
 
@@ -169,3 +169,46 @@ function formatData(iso) {
 function getParam(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
+
+/* ---- v2: marchi, ruoli, piani manutenzione, alberi guasto (DEMO) ---- */
+const BRANDS = { baxi: { nome: 'Baxi', page: 'caldaia.html' }, altro: { nome: 'Altro marchio', page: 'altro-marchio.html' } };
+const SERVIZI = ['Manutenzione annuale ordinaria', 'Analisi fumi', 'Pronto intervento 7/7', 'Ricambi inclusi (no elettronica)', 'Linea telefonica prioritaria', 'Pulizia scambiatore', 'Verifica sicurezza e taratura'];
+const TEMPI = ['4 ore', '24 ore', '48 ore', '72 ore', '5 giorni lavorativi'];
+SEED.tecnici = [
+  { id: 't1', nome: 'Luca Rossi', centro_id: 'centro-rossi', ruolo: 'master' },
+  { id: 't2', nome: 'Marco Neri', centro_id: 'centro-rossi', ruolo: 'tecnico' },
+  { id: 't3', nome: 'Elena Verdi', centro_id: 'centro-verdi', ruolo: 'master' }
+];
+SEED.centri[0].piani = [
+  { id: 'p1', nome: 'Base', servizi: [SERVIZI[0], SERVIZI[1]], tempo: '72 ore', prezzo: 89 },
+  { id: 'p2', nome: 'Comfort', servizi: [SERVIZI[0], SERVIZI[1], SERVIZI[5], SERVIZI[4]], tempo: '48 ore', prezzo: 149 },
+  { id: 'p3', nome: 'Premium', servizi: SERVIZI.slice(), tempo: '4 ore', prezzo: 249 }
+];
+SEED.centri[1].piani = [{ id: 'p1', nome: 'Standard', servizi: [SERVIZI[0], SERVIZI[6]], tempo: '24 ore', prezzo: 119 }];
+SEED.centri[2].piani = [];
+Object.values(SEED.caldaie).forEach(c => Object.assign(c, { marchio: 'baxi', piano_attivo: null, richiesta_piano: null, segnalazioni: [] }));
+SEED.caldaie['AM-2022-0007'] = {
+  matricola: 'AM-2022-0007', marchio: 'altro', tipo: 'Marca X Condens 24', centro_id: 'centro-verdi',
+  utente: { nome: 'Anna Ferrari', posizione: 'Via Garibaldi 5, Marostica (VI)' },
+  data_installazione: '2022-10-03', data_avviamento: '2022-10-04',
+  interventi: [], garanzia: { attiva: false, scadenza: null }, piano_attivo: null, richiesta_piano: null, segnalazioni: []
+};
+const ALBERI = {
+  E10: { nome: 'Pressione acqua bassa', start: 'q1', n: {
+    q1: { t: 'Il manometro indica meno di 0,8 bar?', si: 'q2', no: 'tec' },
+    q2: { t: 'Hai un rubinetto di carico accessibile sotto la caldaia?', si: 'a1', no: 'tec' },
+    a1: { t: 'Apri lentamente il rubinetto fino a 1–1,5 bar (a freddo), richiudilo e premi reset. Il codice è sparito?', si: 'ok', no: 'tec' } } },
+  E01: { nome: 'Mancata accensione / blocco', start: 'q0', n: {
+    q0: { t: 'Senti odore di gas?', si: 'gas', no: 'q1' },
+    q1: { t: 'Il rubinetto del gas è aperto (leva parallela al tubo)?', si: 'q2', no: 'a0' },
+    a0: { t: 'Aprilo, poi premi reset una volta. La caldaia riparte?', si: 'ok', no: 'tec' },
+    q2: { t: 'Premi reset una volta e attendi 2 minuti. La caldaia riparte?', si: 'ok', no: 'tec' } } },
+  E02: { nome: 'Sovratemperatura', start: 'q1', n: {
+    q1: { t: 'Alcuni radiatori sono aperti (valvole non tutte chiuse)?', si: 'a2', no: 'a1' },
+    a1: { t: 'Apri alcune valvole, attendi che la caldaia si raffreddi e premi reset. Riparte?', si: 'ok', no: 'tec' },
+    a2: { t: 'Attendi 10 minuti che si raffreddi e premi reset. Riparte?', si: 'ok', no: 'tec' } } }
+};
+function mutaCaldaia(m, fn) { const db = getDb(); if (db.caldaie[m]) { fn(db.caldaie[m]); saveDb(db); } }
+function richiediPiano(m, id) { mutaCaldaia(m, c => { c.richiesta_piano = { piano_id: id, data: new Date().toISOString().slice(0, 10) }; }); }
+function aggiungiSegnalazione(m, s) { mutaCaldaia(m, c => { (c.segnalazioni = c.segnalazioni || []).push({ data: new Date().toISOString().slice(0, 10), ...s }); }); }
+function salvaPiani(centroId, piani) { const db = getDb(); db.centri.find(c => c.id === centroId).piani = piani; saveDb(db); }
