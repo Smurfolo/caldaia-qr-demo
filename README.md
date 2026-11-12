@@ -22,7 +22,7 @@ Demo statica, nessun backend: tutti i dati vivono in `localStorage`, seedati al 
 Ogni QR dovrebbe incapsulare l'URL completo, non solo la matricola:
 
 ```
-https://smurfolo.github.io/caldaia-qr-demo/caldaia.html?id=CH-2024-0091
+https://<utente>.github.io/<repo>/caldaia.html?id=CH-2024-0091
 ```
 
 Così basta inquadrarlo con la fotocamera di qualsiasi telefono (senza passare dalla pagina scanner) per arrivare direttamente alla scheda. La pagina scanner (`index.html`) serve soprattutto in fase di test/demo o per un uso interno da centralino.
@@ -56,3 +56,15 @@ Per la demo il login è finto: un toggle "Utente finale / Tecnico" + una select 
 - Matricola non riconosciuta: messaggio dedicato. Le matricole generate in `etichette.html` vengono censite nel sistema (in demo, solo nel browser).
 - Tema chiaro/scuro (pulsante in alto a destra, `theme.js`), stile ispirato a Baxi: i colori sono approssimati, si cambiano nelle variabili in cima a `style.css`.
 - Chiave localStorage `v3`: i dati demo precedenti vengono azzerati.
+
+## Novità v4
+
+- **Questionario "la tua assistenza ideale"** (utente, caldaia collegata): evidenzia il piano più vicino alle richieste. I piani del master ora hanno campi strutturati: manutenzione (orari d'ufficio / orario scelto dal cliente), urgenze (giornata / 48h), domenica invernale, ricambi gratuiti dopo la garanzia.
+- **Semaforo ricambi** in cima alla scheda: verde (garanzia convenzionale o estensione valida), giallo (estensione a rischio per manutenzione in scadenza), rosso (a pagamento, con motivo, p.es. "estensione scaduta per manutenzione non effettuata"). La garanzia convenzionale è calcolata in demo come 24 mesi dall'avviamento (`GARANZIA_CONV_MESI`, `ESTENSIONE_BAXI` in `app.js`): vanno sostituiti con le regole reali.
+- **Contratti di estensione** in due sezioni (produttore / centro); il master configura l'estensione del centro.
+- **Prima accensione** completa: dati precompilati, installatore, conformità, foto, consenso richiesto di nuovo se mancante, firma del cliente, certificato via mail (simulato).
+- **Bozze offline**: con la casella "Simula assenza di rete" (o senza rete vera) la prima accensione firmata si salva sul dispositivo, bloccata, e si invia quando torna la rete. `sw.js` fa funzionare le pagine anche offline dopo la prima visita (su GitHub Pages, https). Nella versione reale i dati della caldaia andranno messi in cache per il tecnico.
+- **Area installatore** (`installatore.html`): creata in automatico dalla prima accensione; vede le sue caldaie (senza dati del cliente) e può contattare solo i centri collegati.
+- **Rottamazione** nell'area tecnico, con nuova Baxi / altro / niente.
+- Layout desktop a due colonne; contatti demo unificati (0424517800, baxi.service@baxi.it).
+- Chiave localStorage `v4`: i dati demo precedenti vengono azzerati. Matricole demo nuove: `CH-2021-0123` (semaforo rosso).

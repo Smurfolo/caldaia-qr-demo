@@ -7,15 +7,15 @@
    to change, they only call these functions.
 ------------------------------------------------------------------ */
 
-const DB_KEY = 'caldaie_qr_demo_v3';
+const DB_KEY = 'caldaie_qr_demo_v4';
 
 const SEED = {
   centri: [
     {
       id: 'centro-rossi',
       nome: 'Rossi Termoidraulica',
-      email: 'assistenza@rossitermoidraulica.it',
-      telefono: '+39 0424 123 456',
+      email: 'baxi.service@baxi.it',
+      telefono: '0424517800',
       cap: '36061',
       comune: 'Bassano del Grappa (VI)',
       lat: 45.7669, lng: 11.7379
@@ -23,8 +23,8 @@ const SEED = {
     {
       id: 'centro-verdi',
       nome: 'Verdi Caldaie & Clima',
-      email: 'info@verdicaldaieclima.it',
-      telefono: '+39 0424 654 321',
+      email: 'baxi.service@baxi.it',
+      telefono: '0424517800',
       cap: '36063',
       comune: 'Marostica (VI)',
       lat: 45.7486, lng: 11.6497
@@ -32,8 +32,8 @@ const SEED = {
     {
       id: 'centro-bianchi',
       nome: 'Bianchi Service',
-      email: 'supporto@bianchiservice.it',
-      telefono: '+39 0444 987 654',
+      email: 'baxi.service@baxi.it',
+      telefono: '0424517800',
       cap: '36100',
       comune: 'Vicenza (VI)',
       lat: 45.5469, lng: 11.5464
@@ -142,7 +142,7 @@ function registraPrimaAccensione(matricola, dati) {
   const db = getDb();
   const prev = db.caldaie[matricola] || {};
   db.caldaie[matricola] = {
-    matricola, marchio: prev.marchio || 'baxi', piano_attivo: null, richiesta_piano: null, segnalazioni: [],
+    matricola, marchio: prev.marchio || 'baxi', piano_attivo: null, richiesta_piano: null, segnalazioni: [], estensioni: [], richieste_estensione: {}, stato: 'attiva',
     tipo: dati.tipo,
     centro_id: dati.centro_id,
     utente: { nome: dati.nomeCliente, posizione: dati.posizione },
@@ -211,7 +211,6 @@ const ALBERI = {
     a2: { t: 'Attendi 10 minuti che si raffreddi e premi reset. Riparte?', si: 'ok', no: 'tec' } } }
 };
 function mutaCaldaia(m, fn) { const db = getDb(); if (db.caldaie[m]) { fn(db.caldaie[m]); saveDb(db); } }
-function richiediPiano(m, id) { mutaCaldaia(m, c => { c.richiesta_piano = { piano_id: id, data: new Date().toISOString().slice(0, 10) }; }); }
 function aggiungiSegnalazione(m, s) { mutaCaldaia(m, c => { (c.segnalazioni = c.segnalazioni || []).push({ data: new Date().toISOString().slice(0, 10), ...s }); }); }
 function salvaPiani(centroId, piani) { const db = getDb(); db.centri.find(c => c.id === centroId).piani = piani; saveDb(db); }
 
@@ -233,6 +232,102 @@ function richiestaPerMatricola(m) { const l = (getDb().richieste_avvio || []).fi
 function aggiornaRichiesta(id, stato) { const db = getDb(), r = (db.richieste_avvio || []).find(x => x.id === id); if (r) { r.stato = stato; saveDb(db); } }
 function registraMatricole(list, marchio) {
   const db = getDb(); let n = 0;
-  list.forEach(m => { if (!db.caldaie[m]) { db.caldaie[m] = { matricola: m, marchio, tipo: null, centro_id: null, utente: null, data_installazione: null, data_avviamento: null, interventi: [], garanzia: { attiva: false, scadenza: null }, piano_attivo: null, richiesta_piano: null, segnalazioni: [] }; n++; } });
+  list.forEach(m => { if (!db.caldaie[m]) { db.caldaie[m] = { matricola: m, marchio, tipo: null, centro_id: null, utente: null, data_installazione: null, data_avviamento: null, interventi: [], garanzia: { attiva: false, scadenza: null }, piano_attivo: null, richiesta_piano: null, segnalazioni: [], estensioni: [], richieste_estensione: {}, stato: 'attiva' }; n++; } });
   saveDb(db); return n;
 }
+
+/* ---- v4: contatti, piani strutturati, semaforo ricambi, estensioni, installatori, bozze offline, rottamazione ---- */
+const CONTATTO = { tel: '0424517800', mail: 'baxi.service@baxi.it' };
+const GARANZIA_CONV_MESI = 24; // demo: durata garanzia convenzionale
+const ESTENSIONE_BAXI = { nome: 'Estensione di garanzia Baxi', mesi: 36 }; // demo
+SEED.centri.forEach(c => { c.estensione = { nome: 'Estensione Assistenza Plus', mesi: 24, prezzo: 190 }; });
+const _p = (id, nome, servizi, man, urg, dom, ricambi, prezzo) => ({ id, nome, servizi, man, urg, dom, ricambi, prezzo });
+SEED.centri[0].piani = [
+  _p('p1', 'Base', [SERVIZI[0], SERVIZI[1]], 'ufficio', '48h', false, false, 89),
+  _p('p2', 'Comfort', [SERVIZI[0], SERVIZI[1], SERVIZI[5]], 'libera', '48h', false, false, 149),
+  _p('p3', 'Premium', SERVIZI.slice(), 'libera', 'giorno', true, true, 249)];
+SEED.centri[1].piani = [_p('p1', 'Standard', [SERVIZI[0], SERVIZI[6]], 'ufficio', 'giorno', false, false, 119)];
+SEED.caldaie['CH-2024-0091'].estensioni = [{ id: 'e1', tipo: 'produttore', nome: ESTENSIONE_BAXI.nome, inizio: '2026-03-15', fine: isoOff(400) }];
+SEED.caldaie['AM-2022-0007'].estensioni = [{ id: 'e1', tipo: 'centro', nome: 'Estensione Assistenza Plus', inizio: '2024-10-04', fine: isoOff(300) }];
+SEED.caldaie['CH-2021-0123'] = {
+  matricola: 'CH-2021-0123', marchio: 'baxi', tipo: 'Baxi Luna Platinum 32', centro_id: 'centro-rossi',
+  utente: { nome: 'Giulia Conti', posizione: 'Via Marconi 8, Bassano del Grappa (VI)' },
+  data_installazione: '2021-02-10', data_avviamento: '2021-02-12',
+  interventi: [{ data: isoOff(-420), tipo: 'Manutenzione ordinaria', tecnico: 'Marco Neri' }],
+  garanzia: { attiva: false, scadenza: null }, piano_attivo: null, richiesta_piano: null, segnalazioni: [],
+  estensioni: [{ id: 'e1', tipo: 'centro', nome: 'Estensione Assistenza Plus', inizio: '2023-02-12', fine: isoOff(100) }],
+  prima_accensione: { installatore: { ragione: 'Termo Installazioni Bianchi', referente: 'Paolo Bianchi', email: CONTATTO.mail, telefono: CONTATTO.tel, piva: '01234567890' }, conformita: true, foto: [], firma: null, data: '2021-02-12' }
+};
+Object.values(SEED.caldaie).forEach(c => { c.estensioni = c.estensioni || []; c.richieste_estensione = c.richieste_estensione || {}; c.stato = c.stato || 'attiva'; });
+SEED.installatori = [{ id: 'i1', ragione: 'Termo Installazioni Bianchi', referente: 'Paolo Bianchi', email: CONTATTO.mail, telefono: CONTATTO.tel, piva: '01234567890', centri: ['centro-rossi'] }];
+
+function descrPiano(p) {
+  return [`Manutenzione ordinaria: ${p.man === 'libera' ? "all'orario scelto da te" : "in orari d'ufficio"}`, `Urgenze: ${p.urg === 'giorno' ? 'intervento in giornata' : 'entro 48 ore'}`, `Urgenze anche di domenica (inverno): ${p.dom ? 'sì' : 'no'}`, `Ricambi gratuiti anche dopo la garanzia: ${p.ricambi ? 'sì' : 'no'}`];
+}
+function valutaPiano(p, q) {
+  const n = [];
+  if (q.man === 'libera' && p.man !== 'libera') n.push("manutenzione all'orario che vuoi");
+  if (q.urg === 'giorno' && p.urg !== 'giorno') n.push('urgenze in giornata');
+  if (q.dom && !p.dom) n.push('domenica in inverno');
+  if (q.ricambi && !p.ricambi) n.push('ricambi gratuiti dopo la garanzia');
+  return { mancanti: n, ok: 4 - n.length };
+}
+function ordinaPiani(piani, q) { return piani.map(p => ({ p, v: valutaPiano(p, q) })).sort((a, b) => b.v.ok - a.v.ok || ((a.p.prezzo || 1e9) - (b.p.prezzo || 1e9))); }
+
+function coperturaRicambi(c) {
+  if (!c.data_avviamento) return { cls: 'none', titolo: 'Garanzia non ancora attiva', dettaglio: 'La copertura parte dal primo avviamento.' };
+  const gc = addMonths(c.data_avviamento, GARANZIA_CONV_MESI), pm = prossimaManutenzione(c), manG = pm ? giorniA(pm) : 999;
+  if (giorniA(gc) >= 0) return { cls: 'ok', titolo: 'Ricambi gratuiti', dettaglio: `Garanzia convenzionale attiva fino al ${formatData(gc)}.` };
+  const valide = (c.estensioni || []).filter(e => giorniA(e.fine) >= 0 && giorniA(e.inizio) <= 0);
+  if (valide.length) {
+    const e = valide[0], lab = e.tipo === 'produttore' ? 'Estensione Baxi' : 'Estensione del centro';
+    if (manG < 0) return { cls: 'bad', titolo: 'Ricambi a pagamento', dettaglio: `${lab} scaduta per manutenzione non effettuata.` };
+    if (manG <= 60) return { cls: 'warn', titolo: 'Ricambi gratuiti, ma a rischio', dettaglio: `${lab} attiva fino al ${formatData(e.fine)}. Esegui la manutenzione entro il ${formatData(pm)} per non perdere la copertura.` };
+    return { cls: 'ok', titolo: 'Ricambi gratuiti', dettaglio: `${lab} attiva fino al ${formatData(e.fine)}.` };
+  }
+  return { cls: 'bad', titolo: 'Ricambi a pagamento', dettaglio: (c.estensioni || []).length ? 'Garanzia convenzionale ed estensione terminate.' : 'Garanzia convenzionale terminata e nessuna estensione attiva.' };
+}
+function semaforoHtml(c) {
+  const s = coperturaRicambi(c), lamp = (k) => `<span class="lamp ${k} ${s.cls === k ? 'on' : ''}"></span>`;
+  return `<div class="card semaforo ${s.cls}"><div class="lamps">${lamp('bad')}${lamp('warn')}${lamp('ok')}</div><div><h2 style="margin-bottom:4px">${s.titolo}</h2><p class="lede" style="margin:0">${s.dettaglio}</p></div></div>`;
+}
+function scadenzeHtml(c) {
+  const pm = prossimaManutenzione(c), sm = statoScadenza(pm); if (!sm) return '';
+  const valide = (c.estensioni || []).filter(e => giorniA(e.fine) >= 0 && giorniA(e.inizio) <= 0); let avviso = '';
+  if (valide.length && sm.giorni < 0) avviso = `<div class="alert bad"><strong>Estensione scaduta per manutenzione non effettuata.</strong> La manutenzione annuale è in ritardo: la copertura dell'estensione è decaduta e i ricambi non sono più gratuiti.</div>`;
+  else if (valide.length && sm.giorni <= 60) avviso = `<div class="alert warn"><strong>Attenzione:</strong> se la manutenzione non viene eseguita entro il ${formatData(pm)}, l'estensione di garanzia scade e i ricambi non saranno più gratuiti.</div>`;
+  const ext = (c.estensioni || []).map(e => { const s = statoScadenza(e.fine); return `<div class="data-row"><span class="k">${e.tipo === 'produttore' ? 'Estensione Baxi' : 'Estensione del centro'}</span><span class="v">${formatData(e.fine)}<br><span class="chip ${s.cls}">${s.testo}</span></span></div>`; }).join('');
+  return `<div class="card"><h2>Scadenze</h2><div class="data-row"><span class="k">Prossima manutenzione</span><span class="v">${formatData(pm)}<br><span class="chip ${sm.cls}">${sm.testo}</span></span></div>${ext}${avviso}</div>`;
+}
+function richiediPiano(m, id, prefs) { mutaCaldaia(m, c => { c.richiesta_piano = { piano_id: id, data: isoOff(0), prefs: prefs || null }; }); }
+function richiediEstensione(m, tipo) { mutaCaldaia(m, c => { c.richieste_estensione = c.richieste_estensione || {}; c.richieste_estensione[tipo] = { data: isoOff(0) }; }); }
+function aggiungiEstensione(m, e) { mutaCaldaia(m, c => { (c.estensioni = c.estensioni || []).push({ id: 'e' + Date.now(), ...e }); }); }
+function risolviEstensione(m, tipo, accetta) {
+  mutaCaldaia(m, c => {
+    const r = (c.richieste_estensione || {})[tipo]; if (!r) return;
+    if (accetta) {
+      const cen = getCentro(c.centro_id), es = cen.estensione || {}, mesi = tipo === 'produttore' ? ESTENSIONE_BAXI.mesi : (es.mesi || 24);
+      const gc = addMonths(c.data_avviamento || isoOff(0), GARANZIA_CONV_MESI), inizio = giorniA(gc) > 0 ? gc : isoOff(0);
+      (c.estensioni = c.estensioni || []).push({ id: 'e' + Date.now(), tipo, nome: tipo === 'produttore' ? ESTENSIONE_BAXI.nome : es.nome, inizio, fine: addMonths(inizio, mesi) });
+    }
+    delete c.richieste_estensione[tipo];
+  });
+}
+function rottama(m, info) { mutaCaldaia(m, c => { c.stato = 'rottamata'; c.rottamazione = { data: isoOff(0), ...info }; }); if (info.tipo === 'baxi' && info.matricola) registraMatricole([info.matricola], 'baxi'); }
+function upsertInstallatore(i, centroId) {
+  const db = getDb(); db.installatori = db.installatori || [];
+  let x = db.installatori.find(y => y.piva && y.piva === i.piva);
+  if (!x) { x = { id: 'i' + Date.now(), centri: [] }; db.installatori.push(x); }
+  Object.assign(x, { ragione: i.ragione, referente: i.referente, email: i.email, telefono: i.telefono, piva: i.piva });
+  if (!x.centri.includes(centroId)) x.centri.push(centroId);
+  saveDb(db);
+}
+function completaPrimaAccensione(m, p) {
+  registraPrimaAccensione(m, { nomeCliente: p.nomeCliente, posizione: p.posizione, tipo: p.tipo, dataInstallazione: p.dataInstallazione, dataAvviamento: p.dataAvviamento, centro_id: p.centro_id });
+  mutaCaldaia(m, c => { c.prima_accensione = { installatore: p.installatore, conformita: true, foto: p.foto || [], firma: p.firma, data: p.dataAvviamento, consenso: { privacy: true, marketing: !!p.marketing } }; });
+  upsertInstallatore(p.installatore, p.centro_id);
+}
+const BOZZE_KEY = 'caldaia_bozze_v1';
+function getBozze() { try { return JSON.parse(localStorage.getItem(BOZZE_KEY) || '[]'); } catch (e) { return []; } }
+function saveBozze(l) { try { localStorage.setItem(BOZZE_KEY, JSON.stringify(l)); return true; } catch (e) { return false; } }
+function isOffline() { return sessionStorage.getItem('caldaia_sim_offline') === '1' || navigator.onLine === false; }

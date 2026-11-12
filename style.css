@@ -380,3 +380,35 @@ header.top { align-items: center; }
 .step { flex: 1; font-size: 12px; color: var(--text-dim); text-align: center; border-top: 3px solid var(--border); padding-top: 6px; }
 .step.on { border-color: var(--ok); color: var(--text); font-weight: 600; }
 .svc-grid label span { line-height: 1.4; }
+
+/* --- v4: semaforo, avvisi, firma, foto, desktop --- */
+h3 { font-size: 13px; font-weight: 600; margin: 18px 0 6px; color: var(--text-dim); }
+ul.plain { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.semaforo { display: flex; gap: 16px; align-items: center; border-left: 6px solid var(--border); }
+.semaforo.ok { border-left-color: var(--ok); } .semaforo.warn { border-left-color: #E0A100; } .semaforo.bad { border-left-color: var(--warn); }
+.lamps { display: flex; flex-direction: column; gap: 6px; background: #1C2430; padding: 8px; border-radius: 999px; flex: none; }
+.lamp { width: 18px; height: 18px; border-radius: 50%; background: #3A4452; opacity: .45; }
+.lamp.bad.on { background: #E5484D; opacity: 1; box-shadow: 0 0 10px #E5484D; }
+.lamp.warn.on { background: #F5B400; opacity: 1; box-shadow: 0 0 10px #F5B400; }
+.lamp.ok.on { background: #2FBF71; opacity: 1; box-shadow: 0 0 10px #2FBF71; }
+.alert { border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.5; margin-top: 12px; }
+.alert.bad { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+.alert.warn { background: rgba(224, 161, 0, 0.14); border: 1px solid rgba(224, 161, 0, 0.55); color: var(--text); }
+.plan.best { border: 2px solid var(--flame); }
+.badge { display: inline-block; background: var(--flame); color: var(--on-flame); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; margin-bottom: 8px; }
+canvas.sig { width: 100%; height: 160px; background: #fff; border: 1px dashed var(--border); border-radius: 10px; touch-action: none; display: block; }
+.foto-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.foto-grid img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; }
+.sig-thumb { height: 28px; background: #fff; border-radius: 4px; vertical-align: middle; }
+.card.wide { max-width: 760px; }
+.wrap.narrow { max-width: 640px; }
+@media (min-width: 900px) {
+  .wrap { max-width: 1080px; }
+  .wrap.narrow { max-width: 640px; }
+  body { padding-top: 36px; }
+  h1 { font-size: 28px; }
+  .mode-toggle { max-width: 420px; }
+  #tecnicoLogin { max-width: 520px; }
+  #content, .desk, .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; align-items: start; }
+  #content > .card:first-child, #content > .brand-banner, #content > .semaforo, #content > .wide, .grid2 > header, .grid2 > footer { grid-column: 1 / -1; }
+}

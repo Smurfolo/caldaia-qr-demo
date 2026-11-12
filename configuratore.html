@@ -14,14 +14,17 @@
     <a class="brand" href="index.html" style="text-decoration:none">← home</a>
   </header>
   <div class="card"><label for="who">Accedi come (login finto)</label><select id="who"></select></div>
-  <div id="reqs"></div>
+  <div class="desk">
+<div id="reqs"></div>
   <div id="due"></div>
   <div id="main"></div>
+  <div id="ext"></div>
   <div id="team"></div>
+  </div>
 </div>
 <script src="app.js"></script>
 <script>
-const who = document.getElementById('who'), main = document.getElementById('main'), team = document.getElementById('team'), reqs = document.getElementById('reqs'), due = document.getElementById('due');
+const who = document.getElementById('who'), main = document.getElementById('main'), team = document.getElementById('team'), reqs = document.getElementById('reqs'), ext = document.getElementById('ext'), due = document.getElementById('due');
 const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 function fillWho(keep) {
   const d = getDb(); who.innerHTML = '';
@@ -34,10 +37,10 @@ let piani = [], centroId = null;
 
 function load() {
   const t = getDb().tecnici.find(x => x.id === who.value);
-  if (t.ruolo !== 'master') { team.innerHTML = reqs.innerHTML = due.innerHTML = ''; main.innerHTML = '<div class="card empty-state">Il configuratore è riservato ai master del centro.</div>'; return; }
+  if (t.ruolo !== 'master') { team.innerHTML = reqs.innerHTML = due.innerHTML = ext.innerHTML = ''; main.innerHTML = '<div class="card empty-state">Il configuratore è riservato ai master del centro.</div>'; return; }
   centroId = t.centro_id;
   piani = JSON.parse(JSON.stringify(getCentro(centroId).piani || []));
-  draw(); drawTeam(); drawReqs(); drawDue();
+  draw(); drawTeam(); drawReqs(); drawDue(); drawExt();
 }
 function drawReqs() {
   const l = (getDb().richieste_avvio || []).filter(r => r.centro_id === centroId).reverse(), cls = { 'in attesa': 'warn', accettata: 'ok', completata: 'ok', rifiutata: 'warn' };
@@ -47,12 +50,17 @@ function drawDue() {
   const rows = [];
   Object.values(getDb().caldaie).filter(c => c.centro_id === centroId).forEach(c => {
     const pm = prossimaManutenzione(c); if (pm) rows.push({ c, tipo: 'Manutenzione', s: statoScadenza(pm) });
-    if (c.garanzia && c.garanzia.attiva && c.garanzia.scadenza) rows.push({ c, tipo: 'Garanzia', s: statoScadenza(c.garanzia.scadenza) });
+    (c.estensioni || []).forEach(e => rows.push({ c, tipo: 'Estensione ' + (e.tipo === 'produttore' ? 'Baxi' : 'centro'), s: statoScadenza(e.fine) }));
   });
   const l = rows.filter(r => r.s.giorni <= 60).sort((a, b) => a.s.giorni - b.s.giorni);
   due.innerHTML = `<div class="card"><h2>Scadenze nei prossimi 60 giorni</h2>` + (l.length ? l.map(r => `<div class="intervento"><span><a href="${BRANDS[r.c.marchio || 'baxi'].page}?id=${encodeURIComponent(r.c.matricola)}">${esc(r.c.matricola)}</a> — ${r.tipo}${r.c.utente ? '<br><small>' + esc(r.c.utente.nome) + '</small>' : ''}</span><span class="chip ${r.s.cls}">${r.s.testo}</span></div>`).join('') : `<div class="empty-state" style="padding:12px 0">Nessuna scadenza imminente.</div>`) + `</div>`;
 }
 reqs.addEventListener('click', e => { const b = e.target.closest('[data-rq]'); if (b) { aggiornaRichiesta(b.dataset.id, b.dataset.rq); drawReqs(); } });
+function drawExt() {
+  const e = getCentro(centroId).estensione || {};
+  ext.innerHTML = `<div class="card"><h2>Estensione del centro</h2><p class="count-hint" style="margin-top:0">Contratto offerto agli utenti, garantito dal centro anche fuori garanzia del produttore.</p><label>Nome</label><input type="text" id="extNome" value="${esc(e.nome)}"><div class="field-row"><div><label>Durata (mesi)</label><input type="text" id="extMesi" value="${e.mesi || ''}"></div><div><label>Prezzo €</label><input type="text" id="extPrezzo" value="${e.prezzo || ''}"></div></div><button class="btn btn-primary btn-block" id="extSave" style="margin-top:12px">Salva</button><div class="count-hint" id="extMsg"></div></div>`;
+}
+ext.addEventListener('click', e => { if (e.target.id !== 'extSave') return; const d = getDb(); d.centri.find(c => c.id === centroId).estensione = { nome: document.getElementById('extNome').value.trim() || 'Estensione del centro', mesi: parseInt(document.getElementById('extMesi').value, 10) || 24, prezzo: parseInt(document.getElementById('extPrezzo').value, 10) || null }; saveDb(d); document.getElementById('extMsg').textContent = 'Salvato.'; });
 function drawTeam() {
   const d = getDb(), me = who.value, mem = d.tecnici.filter(t => t.centro_id === centroId);
   team.innerHTML = `<div class="card"><h2>Team del centro</h2>` + mem.map(t => `<div class="data-row" style="align-items:center"><span>${t.nome}${t.id === me ? ' (tu)' : ''}</span><span style="display:flex;gap:6px"><select data-role="${t.id}" style="width:auto" ${t.id === me ? 'disabled' : ''}><option ${t.ruolo === 'tecnico' ? 'selected' : ''}>tecnico</option><option ${t.ruolo === 'master' ? 'selected' : ''}>master</option></select><button class="btn btn-secondary" data-rm="${t.id}" ${t.id === me ? 'disabled' : ''}>Rimuovi</button></span></div>`).join('') +
@@ -62,8 +70,11 @@ function draw() {
   main.innerHTML = `<div class="card"><h1>Piani di manutenzione</h1><p class="lede" style="margin:0">${getCentro(centroId).nome} — fino a 3 configurazioni, visibili agli utenti senza piano.</p></div>` +
     piani.map((p, i) => `<div class="card" data-i="${i}"><label>Nome piano</label><input type="text" data-f="nome" value="${p.nome}">
       <label>Servizi inclusi</label><div class="svc-grid">${SERVIZI.map(s => `<label><input type="checkbox" data-f="srv" value="${s}" ${p.servizi.includes(s) ? 'checked' : ''}>${s}</label>`).join('')}</div>
-      <div class="field-row"><div><label>Tempo di risposta</label><select data-f="tempo">${TEMPI.map(t => `<option ${t === p.tempo ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
-      <div><label>Prezzo €/anno (vuoto = su richiesta)</label><input type="text" data-f="prezzo" value="${p.prezzo || ''}"></div></div>
+      <label>Manutenzione ordinaria</label><select data-f="man"><option value="ufficio" ${p.man !== 'libera' ? 'selected' : ''}>In orari d'ufficio</option><option value="libera" ${p.man === 'libera' ? 'selected' : ''}>All'orario scelto dal cliente</option></select>
+      <label>Urgenze (senza acqua calda / riscaldamento)</label><select data-f="urg"><option value="giorno" ${p.urg === 'giorno' ? 'selected' : ''}>Intervento in giornata</option><option value="48h" ${p.urg !== 'giorno' ? 'selected' : ''}>Entro 48 ore</option></select>
+      <div class="field-row"><div><label>Anche di domenica (inverno)</label><select data-f="dom"><option value="no" ${!p.dom ? 'selected' : ''}>No</option><option value="si" ${p.dom ? 'selected' : ''}>Sì</option></select></div>
+      <div><label>Ricambi gratis dopo garanzia</label><select data-f="ricambi"><option value="no" ${!p.ricambi ? 'selected' : ''}>No</option><option value="si" ${p.ricambi ? 'selected' : ''}>Sì</option></select></div></div>
+      <label>Prezzo €/anno (vuoto = su richiesta)</label><input type="text" data-f="prezzo" value="${p.prezzo || ''}">
       <button class="btn btn-secondary btn-block" data-del="${i}" style="margin-top:14px">Elimina</button></div>`).join('') +
     (piani.length < 3 ? '<button class="btn btn-secondary btn-block" id="add">+ Aggiungi configurazione</button>' : '') +
     '<button class="btn btn-primary btn-block" id="save" style="margin-top:10px">Salva</button><div class="count-hint" id="msg"></div>';
@@ -72,12 +83,13 @@ main.addEventListener('input', e => {
   const c = e.target.closest('[data-i]'); if (!c) return; const p = piani[c.dataset.i], f = e.target.dataset.f;
   if (f === 'srv') p.servizi = [...c.querySelectorAll('[data-f=srv]:checked')].map(x => x.value);
   else if (f === 'prezzo') p.prezzo = parseInt(e.target.value, 10) || null;
+  else if (f === 'dom' || f === 'ricambi') p[f] = e.target.value === 'si';
   else if (f) p[f] = e.target.value;
 });
 main.addEventListener('click', e => {
   const t = e.target;
   if (t.dataset.del !== undefined) { piani.splice(t.dataset.del, 1); draw(); }
-  else if (t.id === 'add') { piani.push({ id: 'p' + Date.now(), nome: 'Nuovo piano', servizi: [SERVIZI[0]], tempo: TEMPI[1], prezzo: null }); draw(); }
+  else if (t.id === 'add') { piani.push({ id: 'p' + Date.now(), nome: 'Nuovo piano', servizi: [SERVIZI[0]], man: 'ufficio', urg: '48h', dom: false, ricambi: false, prezzo: null }); draw(); }
   else if (t.id === 'save') { salvaPiani(centroId, piani); document.getElementById('msg').textContent = 'Salvato. Gli utenti vedono ora queste offerte.'; }
 });
 function mutaTeam(fn) { const d = getDb(); fn(d); saveDb(d); fillWho(who.value); drawTeam(); }
