@@ -1,5 +1,5 @@
-const V = 'caldaia-v4';
-const FILES = ['./', 'index.html', 'caldaia.html', 'altro-marchio.html', 'configuratore.html', 'etichette.html', 'installatore.html', 'style.css', 'app.js', 'caldaia.js', 'theme.js', 'vendor/qrcode.js', 'vendor/jspdf.umd.min.js', 'vendor/html5-qrcode.min.js'];
+const V = 'caldaia-v7';
+const FILES = ['./', 'index.html', 'caldaia.html', 'altro-marchio.html', 'configuratore.html', 'etichette.html', 'installatore.html', 'login.html', 'staff.html', 'i18n.js', 'style.css', 'app.js', 'caldaia.js', 'alarmi.js', 'theme.js', 'vendor/qrcode.js', 'vendor/jspdf.umd.min.js', 'vendor/html5-qrcode.min.js'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(V).then(c => c.addAll(FILES))); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

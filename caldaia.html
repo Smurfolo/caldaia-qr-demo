@@ -5,30 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scheda caldaia</title>
 <link rel="stylesheet" href="style.css">
+<script src="i18n.js"></script>
 <script src="theme.js"></script>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <div class="brand"><strong>Caldaia</strong> · assistenza</div>
-    <a class="brand" href="index.html" style="text-decoration:none">← scanner</a>
+    <div class="hdr-actions"><a class="brand" href="index.html" style="text-decoration:none">← scanner</a><span id="authBox" class="brand"></span></div>
   </header>
-
-  <div class="mode-toggle" id="modeToggle">
-    <button data-mode="utente" class="active">Utente finale</button>
-    <button data-mode="tecnico">Tecnico</button>
-  </div>
-
-  <div id="tecnicoLogin" style="display:none" class="card">
-    <label for="tecnicoSelect">Accedi come</label>
-    <select id="tecnicoSelect"></select>
-    <div class="svc-grid" style="margin-top:10px"><label><input type="checkbox" id="simOffline"><span>Simula assenza di rete (demo bozze offline)</span></label></div>
-  </div>
 
   <div id="content"></div>
 </div>
 
 <script src="app.js"></script>
+<script src="alarmi.js"></script>
 <script src="caldaia.js"></script>
 </body>
 </html>

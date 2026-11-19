@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Area tecnici</title>
+<link rel="stylesheet" href="style.css">
+<script src="i18n.js"></script>
+<script src="theme.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><strong>Caldaia</strong> · area tecnici</div>
+    <div class="hdr-actions"><a class="brand" href="index.html" style="text-decoration:none">← scanner</a><span id="authBox" class="brand"></span></div>
+  </header>
+  <div class="desk" id="out"></div>
+</div>
+<script src="app.js"></script>
+<script>
+const me = currentStaff();
+if (!me) { location.replace('login.html?next=staff.html'); throw new Error('redirect'); }
+renderAuthBox(document.getElementById('authBox'));
+const esc = escHtml, centro = getCentro(me.centro_id), db = getDb();
+const mie = Object.values(db.caldaie).filter(c => c.centro_id === me.centro_id && c.stato !== 'rottamata');
+const nBozze = getBozze().filter(b => b.centro_id === me.centro_id).length;
+const lbl = { ok: 'Ricambi gratuiti', warn: 'A rischio', bad: 'A pagamento', none: 'Non attiva' };
+document.getElementById('out').innerHTML =
+  `<div class="card"><h1>${esc(me.nome)}</h1><span class="chip ok">${me.ruolo}</span><p class="lede" style="margin:10px 0 0">${esc(centro.nome)} — ${esc(centro.comune)}</p></div>` +
+  `<div class="card"><h2>Apri una caldaia</h2><label for="m">Matricola</label><input type="text" id="m" placeholder="es. CH-2024-0091"><button class="btn btn-primary btn-block" id="open" style="margin-top:12px">Apri scheda</button><a class="btn btn-secondary btn-block" style="margin-top:10px" href="index.html">Oppure scansiona il QR</a></div>` +
+  `<div class="card"><h2>Strumenti</h2><a class="btn btn-secondary btn-block" href="etichette.html">Genera etichette QR</a>${me.ruolo === 'master' ? '<a class="btn btn-secondary btn-block" style="margin-top:10px" href="configuratore.html">Richieste, piani e team</a>' : ''}${nBozze ? `<p style="margin:12px 0 0"><span class="chip warn">${nBozze} bozze firmate da inviare</span></p><p class="count-hint">Le trovi aprendo la scheda di una qualsiasi caldaia con rete disponibile.</p>` : ''}</div>` +
+  `<div class="card"><h2>Le caldaie del centro</h2>` + (mie.length ? mie.map(c => { const s = coperturaRicambi(c); return `<div class="intervento"><span><a href="${BRANDS[c.marchio || 'baxi'].page}?id=${encodeURIComponent(c.matricola)}">${esc(c.matricola)}</a> — ${esc(c.tipo || '—')}${c.utente ? '<br><small>' + esc(c.utente.nome) + '</small>' : ''}</span><span class="chip ${s.cls === 'ok' ? 'ok' : 'warn'}">${lbl[s.cls]}</span></div>`; }).join('') : '<div class="empty-state" style="padding:12px 0">Nessuna caldaia in gestione.</div>') + `</div>`;
+document.getElementById('open').addEventListener('click', () => {
+  const m = document.getElementById('m').value.trim().toUpperCase(); if (!m) return;
+  const c = getCaldaia(m); location.href = (c && c.marchio === 'altro' ? 'altro-marchio.html' : 'caldaia.html') + '?id=' + encodeURIComponent(m);
+});
+</script>
+</body>
+</html>

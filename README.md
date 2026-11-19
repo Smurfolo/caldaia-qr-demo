@@ -68,3 +68,31 @@ Per la demo il login è finto: un toggle "Utente finale / Tecnico" + una select 
 - **Rottamazione** nell'area tecnico, con nuova Baxi / altro / niente.
 - Layout desktop a due colonne; contatti demo unificati (0424517800, baxi.service@baxi.it).
 - Chiave localStorage `v4`: i dati demo precedenti vengono azzerati. Matricole demo nuove: `CH-2021-0123` (semaforo rosso).
+
+## Novità v5
+
+- **Questionario:** opzione "Indifferente" per giorno e ora; alternative in caso di urgenza a scelta multipla (climatizzatore con caldo, stufa elettrica, camino/pellet, scaldabagno elettrico, ospitalità). Le preferenze arrivano al tecnico con la richiesta.
+- **Prezzi:** il master può nasconderli (piani ed estensioni): il cliente vede "su richiesta".
+- **Baxi consiglia** (in `configuratore.html`): 3 piani ideali, si copiano solo i parametri (non il prezzo) e poi si modificano. Con 3 proposte già presenti chiede quale sostituire; altrimenti avvisa che è stata aggiunta. I piani sono in `BAXI_CONSIGLIA` (`app.js`).
+- **Estensioni:** il tecnico può solo pre-approvare; l'approvazione definitiva, il rifiuto e la registrazione manuale dei contratti sono del master (anche dalla lista "Estensioni da approvare").
+- **Storico modifiche** (solo master): chi ha fatto cosa e quando (piani, prezzi, team, richieste, estensioni, interventi, cambio proprietario…).
+- **Cambio proprietario** (solo centro, area tecnico): dati e consensi del nuovo proprietario; il vecchio viene archiviato, le segnalazioni passate perdono i contatti, le richieste aperte si annullano, piano ed estensione del centro restano solo se confermato. È una bozza della logica: regole e tutele vanno validate con DPO e ufficio legale.
+- **Etichette, controllo qualità:** duplicati, formato non valido, matricole già presenti (con opzione per escluderle), import da CSV/TXT.
+- **Statistiche master:** guasti risolti in autonomia, codici errore più frequenti, copertura ricambi, manutenzioni in ritardo, richieste di avviamento.
+- Chiave localStorage `v5`: i dati demo precedenti vengono azzerati.
+- Le protezioni sui ruoli (master/tecnico) valgono solo nell'interfaccia: in produzione vanno applicate lato server.
+
+## Novità v6 / What's new in v6
+
+- **Aree separate.** *Cliente*: si entra scansionando il QR (`index.html` → `caldaia.html?id=…`), nessun login e nessuna funzione tecnica. *Tecnici, master, installatori*: `login.html` (login finto: si sceglie la persona), poi `staff.html` (area tecnici) o `installatore.html`. Il link "Accesso tecnici" è anche nell'area cliente: dopo il login si torna alla stessa scheda, che si apre in vista tecnico. `etichette.html` e `configuratore.html` richiedono il login (il configuratore solo master). La sessione sta in `localStorage` (`caldaia_session`), funzioni in `app.js`. In produzione sostituire con l'autenticazione aziendale e applicare i permessi lato server.
+- **Inglese / English.** Pulsante IT/EN in alto a destra (scelta ricordata; predefinita dalla lingua del browser). Il codice resta in italiano: `i18n.js` traduce a runtime ogni testo visibile (testi, placeholder, alert) con un dizionario (frasi intere, regole per le frasi con valori, parole sciolte). Per correggere o aggiungere una traduzione si modifica solo `i18n.js`. I testi digitati dall'utente (nomi, note) non vengono tradotti. Se aggiungi nuovi testi in italiano e restano in italiano in inglese, vanno aggiunti al dizionario.
+- Pagine nuove: `login.html`, `staff.html`, `i18n.js`. `installatore.html` ora richiede il login da installatore.
+- Prova rapida: in `login.html` scegli *Luca Rossi (master)* per l'area completa, *Marco Neri (tecnico)* per quella limitata, o *Paolo Bianchi* per l'installatore.
+
+## Novità v7 / What's new in v7 — Luna Classic
+
+- **Alberi di risoluzione per la Baxi Luna Classic** (`alarmi.js`): si attivano quando il modello della caldaia contiene "Luna Classic" (demo: `CH-2023-0310`). Le altre caldaie usano ancora l'albero generico di prova.
+- **Tre menu a tendina** (H, E, A) con tutti i 58 codici: scelto un codice compare subito il **messaggio standard** della famiglia (H temporanea, E permanente, A predittivo), poi il codice con la descrizione. I codici con procedura guidata hanno il marker ●: verifica, passi, video, esito, e i pulsanti "Il problema è risolto" / "Il problema persiste" (che porta al contatto con il centro). Gli altri mostrano messaggio, codice e il pulsante per contattare il centro.
+- I video sono **segnaposto** (VIDEO_01…06): per collegare i file reali basta sostituire il blocco `.video-ph` in `caldaia.js` con un `<video>` o un link.
+- I testi sono in italiano e in inglese; i codici e le descrizioni stanno in `alarmi.js`, le traduzioni in `i18n.js`.
+- Chiave localStorage `v6`: i dati demo precedenti vengono azzerati.

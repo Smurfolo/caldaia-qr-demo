@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scansiona la caldaia</title>
 <link rel="stylesheet" href="style.css">
+<script src="i18n.js"></script>
 <script src="theme.js"></script>
 </head>
 <body>
 <div class="wrap grid2">
   <header class="top">
     <div class="brand"><strong>Caldaia</strong> · assistenza</div>
-    
+    <span id="authBox" class="brand"></span>
   </header>
 
   <div class="card">
@@ -57,6 +58,10 @@
         <span>CH-2021-0123</span>
         <span class="chip warn">Estensione decaduta</span>
       </a>
+      <a class="btn btn-secondary" href="caldaia.html?id=CH-2023-0310">
+        <span>CH-2023-0310</span>
+        <span class="chip ok">Allarmi guidati</span>
+      </a>
       <a class="btn btn-secondary" href="caldaia.html?id=XX-9999-0000">
         <span>XX-9999-0000</span>
         <span class="chip warn">Non riconosciuta</span>
@@ -69,12 +74,9 @@
   </div>
 
   <div class="card">
-    <h2>Area centro assistenza (demo)</h2>
-    <div class="demo-links">
-      <a class="btn btn-secondary" href="etichette.html">Genera etichette QR</a>
-      <a class="btn btn-secondary" href="configuratore.html">Configuratore e richieste (master)</a>
-      <a class="btn btn-secondary" href="installatore.html">Area installatore</a>
-    </div>
+    <h2>Area riservata (demo)</h2>
+    <p class="lede" style="margin-bottom:12px">Tecnici, master e installatori accedono con un login (finto in questa demo). I clienti non devono accedere: basta inquadrare il QR sulla caldaia.</p>
+    <a class="btn btn-secondary btn-block" href="login.html">Accesso tecnici e installatori</a>
   </div>
 
   <footer class="note">
@@ -149,6 +151,7 @@
     if (val.trim()) goToId(val);
   });
 
+  renderAuthBox(document.getElementById('authBox'));
   document.getElementById('resetLink').addEventListener('click', (e) => {
     e.preventDefault();
     resetDb();

@@ -4,31 +4,15 @@ function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&
 if (BRAND !== 'baxi') document.body.classList.add('brand-altro');
 let uView = 'home', tView = 'home', flash = '', fotoTmp = [], sigData = null, sigDirty = false;
 const uCtx = {};
-let mode = 'utente';
-
-// --- login finto ------------------------------------------------------
 const db = getDb();
-const tecnicoSelect = document.getElementById('tecnicoSelect');
-db.tecnici.forEach(t => { const o = document.createElement('option'); o.value = t.id; o.textContent = `${t.nome} (${t.ruolo}) — ${getCentro(t.centro_id).nome}`; tecnicoSelect.appendChild(o); });
-document.querySelectorAll('#modeToggle button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#modeToggle button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active'); mode = btn.dataset.mode;
-    document.getElementById('tecnicoLogin').style.display = mode === 'tecnico' ? 'block' : 'none';
-    render();
-  });
-});
-tecnicoSelect.value = localStorage.getItem('caldaia_demo_tecnico') || db.tecnici[0].id;
-if (!tecnicoSelect.value) tecnicoSelect.value = db.tecnici[0].id;
-tecnicoSelect.addEventListener('change', () => { localStorage.setItem('caldaia_demo_tecnico', tecnicoSelect.value); render(); });
-function currentTecnico() { return db.tecnici.find(t => t.id === tecnicoSelect.value) || db.tecnici[0]; }
-const simOff = document.getElementById('simOffline');
-simOff.checked = sessionStorage.getItem('caldaia_sim_offline') === '1';
+const staff = currentStaff();
+const mode = staff ? 'tecnico' : 'utente';
+renderAuthBox(document.getElementById('authBox'));
+function currentTecnico() { return staff; }
 function aggiornaBtnOffline() {
   const b = document.getElementById('submitPrimaAccensione'); if (b) b.textContent = isOffline() ? 'Salva bozza firmata (offline)' : 'Conferma prima accensione';
   const n = document.getElementById('offNote'); if (n) n.style.display = isOffline() ? 'block' : 'none';
 }
-simOff.addEventListener('change', () => { sessionStorage.setItem('caldaia_sim_offline', simOff.checked ? '1' : '0'); aggiornaBtnOffline(); });
 window.addEventListener('online', aggiornaBtnOffline); window.addEventListener('offline', aggiornaBtnOffline);
 
 // --- render -----------------------------------------------------------
@@ -46,7 +30,14 @@ function render() {
 }
 
 const INFO = `<button class="info-btn" data-act="info" title="Come funziona">?</button><div class="hint" id="infoBox" style="display:none">Scegli il centro assistenza più vicino e lascia i tuoi dati. La richiesta arriva al centro, che la valuta e, una volta accettato il lavoro, ti ricontatta per fissare il primo avviamento. Nella demo i dati restano solo in questo browser.</div>`;
-const euro = p => p ? `€ ${p}/anno` : 'su richiesta';
+let showPrezzi = true;
+const euro = p => (showPrezzi && p) ? `€ ${p}/anno` : 'su richiesta';
+function prefsHtml(p) {
+  if (!p) return ''; const parts = [];
+  if (p.man === 'libera') { const g = p.giorno && p.giorno !== 'Indifferente', f = p.fascia && p.fascia !== 'Indifferente'; parts.push(g || f ? 'Orario preferito: ' + [g ? esc(p.giorno) : null, f ? esc(p.fascia) : null].filter(Boolean).join(', ') : 'Giorno e ora indifferenti'); }
+  if (p.alt && p.alt.length) parts.push('Alternative in caso di urgenza: ' + p.alt.map(esc).join(', '));
+  return parts.length ? `<p class="count-hint">${parts.join('<br>')}</p>` : '';
+}
 const MAILMSG = `<p class="count-hint">✉ La mail è stata inviata a te e al centro assistenza (demo).</p>`;
 function rottamataHtml(c) {
   const r = c.rottamazione || {}, s = r.tipo === 'baxi' ? `Sostituita con una nuova caldaia Baxi (${esc(r.matricola)})` : r.tipo === 'altro' ? `Sostituita con: ${esc(r.descrizione)}` : 'Nessuna sostituzione indicata';
@@ -61,14 +52,31 @@ function estensioniUtenteHtml(c, centro) {
   };
   return `<div class="card"><h2>Contratti di estensione</h2>` +
     sez('produttore', 'Estensione di garanzia Baxi', 'Garantita dal produttore', `${ESTENSIONE_BAXI.nome}: ${ESTENSIONE_BAXI.mesi / 12} anni, ricambi gratuiti con manutenzione annuale.`) +
-    sez('centro', 'Estensione del centro assistenza', `Garantita da ${esc(centro.nome)}, anche fuori garanzia del produttore`, `${esc(es.nome)}: ${es.mesi / 12} anni${es.prezzo ? ' · € ' + es.prezzo : ''}.`) + `</div>`;
+    sez('centro', 'Estensione del centro assistenza', `Garantita da ${esc(centro.nome)}, anche fuori garanzia del produttore`, `${esc(es.nome)}: ${es.mesi / 12} anni${showPrezzi ? (es.prezzo ? ' · € ' + es.prezzo : '') : ' · prezzo su richiesta'}.`) + `</div>`;
 }
 
+function allarmiView(back) {
+  const M = ALLARMI_LUNA, al = uCtx.al, x = al && M.byCode[al.code];
+  const nome = { H: 'Allarme H — Anomalie temporanee', E: 'Allarme E — Anomalie permanenti', A: 'Allarme A — Avvisi predittivi' };
+  let h = `<div class="card wide"><h2>Segnala un guasto</h2><p class="lede">Seleziona il codice mostrato sul display: il messaggio di riferimento compare subito.</p><div class="alm-menus">` +
+    ['H', 'E', 'A'].map(l => `<div class="alm-menu alm-${l}"><label for="alm${l}">${nome[l]}</label><select id="alm${l}" data-alm="${l}"><option value="">Scegli il codice…</option>${codiciPerLettera(l).map(c => `<option value="${c.c}" ${al && al.code === c.c ? 'selected' : ''}>${c.guida ? '● ' : ''}${c.c} — ${esc(c.d)}</option>`).join('')}</select></div>`).join('') +
+    `</div><p class="count-hint">● = procedura guidata</p>${back}</div>`;
+  if (!x) return h;
+  const m = M.msg[x.t], g = x.guida;
+  h += `<div class="alert ${m.cls} alm-msg"><strong>${m.titolo}</strong>${m.testo.map(p => `<p>${p}</p>`).join('')}</div>`;
+  h += `<div class="card"><span class="alm-code alm-${x.t}">${x.c}</span><p style="margin:10px 0 0">${esc(x.d)}</p></div>`;
+  if (g) h += `<div class="card"><h2>Procedura guidata</h2><h3>Verifica</h3><p style="margin:0;line-height:1.5">${g.verifica ? esc(g.verifica) : 'Nessuna verifica richiesta'}</p><h3>Cosa fare</h3><ol class="steps-list">${g.azione.map(a => `<li>${esc(a)}</li>`).join('')}</ol>` +
+    (g.video.length ? `<h3>Video</h3>${g.video.map(v => `<div class="video-ph"><span>▶</span><div><strong>${v}</strong><div>${M.video[v]}</div><small>Video dimostrativo (segnaposto)</small></div></div>`).join('')}` : '') +
+    `<h3>Esito</h3><p style="margin:0 0 14px;line-height:1.5">${g.esito}</p><div style="display:flex;gap:10px"><button class="btn btn-primary" style="flex:1" data-act="al-risolto">Il problema è risolto</button><button class="btn btn-secondary" style="flex:1" data-act="al-persiste">Il problema persiste</button></div></div>`;
+  else h += `<div class="card"><button class="btn btn-primary btn-block" data-act="al-persiste">Contatta il centro assistenza</button></div>`;
+  return h;
+}
 function renderUtente(caldaia) {
   const linked = !!caldaia.centro_id;
   const head = `<div class="card"><h1>Caldaia <span class="matricola">${esc(matricola)}</span></h1>${linked ? '<span class="chip ok">Centro assistenza collegato</span>' : '<span class="chip warn">Nessun centro collegato</span>'}</div>`;
   const back = `<button class="btn btn-secondary btn-block" data-act="home" style="margin-top:10px">Indietro</button>`;
   const centro = linked ? getCentro(caldaia.centro_id) : (uCtx.centro ? getCentro(uCtx.centro) : null);
+  showPrezzi = !centro || centro.mostra_prezzi !== false;
   if (caldaia.stato === 'rottamata') return head + rottamataHtml(caldaia);
   if (uView === 'avvio-centri') return head + `<div class="card"><h2>Scegli il centro assistenza ${INFO}</h2>
     <label for="capInput">Il tuo CAP</label><input type="text" id="capInput" placeholder="es. 36061" maxlength="5">
@@ -85,6 +93,7 @@ function renderUtente(caldaia) {
     <div class="svc-grid" style="margin-top:14px"><label><input type="checkbox" id="cPriv"><span>Ho letto l'<a href="#">informativa privacy</a> e acconsento al trattamento dei miei dati per gestire la richiesta *</span></label><label><input type="checkbox" id="cMkt"><span>Acconsento a ricevere comunicazioni commerciali (facoltativo)</span></label></div>
     <button class="btn btn-primary btn-block" data-act="invia-avvio" style="margin-top:16px">Invia richiesta</button>${back}</div>`;
   if (uView === 'avvio-ok') return head + `<div class="card"><span class="chip ok">Richiesta inviata</span><p class="lede" style="margin-top:12px">${centro.nome} riceverà i tuoi dati e ti ricontatterà dopo aver accettato il lavoro. Puoi seguire lo stato da questa pagina. <em>(Demo: dati salvati solo in questo browser.)</em></p>${back}</div>`;
+  if (uView === 'guasto' && modelloAllarmi(caldaia)) return head + allarmiView(back);
   if (uView === 'guasto') return head + `<div class="card"><h2>Segnala un guasto</h2><p class="lede" style="margin-bottom:12px">Che codice errore vedi sul display?</p>
     ${Object.entries(ALBERI).map(([k, v]) => `<button class="btn btn-secondary btn-block" data-act="codice" data-code="${k}" style="margin-bottom:8px">${k} — ${v.nome}</button>`).join('')}
     <label for="codiceAltro">Altro codice o nessun codice</label><input type="text" id="codiceAltro" placeholder="es. E05">
@@ -102,13 +111,14 @@ function renderUtente(caldaia) {
   if (uView === 'guasto-ok') return head + `<div class="card"><span class="chip ok">Segnalazione inviata</span><p class="lede" style="margin-top:12px">${centro.nome} è stato avvisato.</p>${back}</div>`;
   if (uView === 'quiz') return head + `<div class="card wide"><h2>La tua assistenza ideale</h2>
     <label>La manutenzione ordinaria la preferisci…</label><div class="svc-grid"><label><input type="radio" name="qMan" value="ufficio" checked><span>In orari d'ufficio</span></label><label><input type="radio" name="qMan" value="libera"><span>All'ora che vuoi tu</span></label></div>
-    <label>Il tuo giorno e orario ideale (se scegli l'orario libero)</label><div class="field-row"><div><select id="qGiorno"><option>Lunedì</option><option>Martedì</option><option>Mercoledì</option><option>Giovedì</option><option>Venerdì</option><option>Sabato</option></select></div><div><select id="qFascia"><option>Mattina (8-12)</option><option>Pomeriggio (14-18)</option><option>Sera (18-20)</option></select></div></div>
+    <label>Il tuo giorno e orario ideale (se scegli l'orario libero)</label><div class="field-row"><div><select id="qGiorno"><option value="Indifferente">Indifferente</option><option value="Lunedì">Lunedì</option><option value="Martedì">Martedì</option><option value="Mercoledì">Mercoledì</option><option value="Giovedì">Giovedì</option><option value="Venerdì">Venerdì</option><option value="Sabato">Sabato</option></select></div><div><select id="qFascia"><option value="Indifferente">Indifferente</option><option value="Mattina (8-12)">Mattina (8-12)</option><option value="Pomeriggio (14-18)">Pomeriggio (14-18)</option><option value="Sera (18-20)">Sera (18-20)</option></select></div></div>
     <label>In caso di urgenza (senza acqua calda o riscaldamento) come immagini il servizio?</label><div class="svc-grid"><label><input type="radio" name="qUrg" value="giorno" checked><span>Il più rapido possibile (il giorno stesso)</span></label><label><input type="radio" name="qUrg" value="48h"><span>Ho altre fonti alternative (entro 48 ore)</span></label></div>
+    <label>Se hai alternative, quali? (anche più di una)</label><div class="svc-grid">${ALTERNATIVE.map(a => `<label><input type="checkbox" name="qAlt" value="${esc(a)}"><span>${esc(a)}</span></label>`).join('')}</div>
     <label>In caso di urgenza vorresti l'assistenza anche di domenica (nei mesi invernali)?</label><div class="svc-grid"><label><input type="radio" name="qDom" value="si" checked><span>Sì</span></label><label><input type="radio" name="qDom" value="no"><span>No</span></label></div>
     <label>Vorresti tutti i ricambi gratuiti anche dopo la garanzia?</label><div class="svc-grid"><label><input type="radio" name="qRic" value="si" checked><span>Sì</span></label><label><input type="radio" name="qRic" value="no"><span>No</span></label></div>
     <button class="btn btn-primary btn-block" data-act="quiz-go" style="margin-top:16px">Mostra la mia assistenza ideale</button>${back}</div>`;
   if (uView === 'quiz-ris') { const o = ordinaPiani(centro.piani || [], uCtx.q);
-    return head + `<div class="card"><h2>Le offerte, in base alle tue richieste</h2>${uCtx.q.man === 'libera' ? `<p class="count-hint" style="margin-top:0">Orario preferito: ${esc(uCtx.q.giorno)}, ${esc(uCtx.q.fascia)}</p>` : ''}${o.map((x, i) => pianoCard(x.p, { best: i === 0, v: x.v })).join('')}${back}</div>`; }
+    return head + `<div class="card"><h2>Le offerte, in base alle tue richieste</h2>${prefsHtml(uCtx.q)}${o.map((x, i) => pianoCard(x.p, { best: i === 0, v: x.v })).join('')}${back}</div>`; }
   // home
   if (!linked) {
     const rq = richiestaPerMatricola(matricola), rc = rq && getCentro(rq.centro_id);
@@ -127,7 +137,7 @@ function renderUtente(caldaia) {
   html += scadenzeHtml(caldaia) + estensioniUtenteHtml(caldaia, centro);
   const piani = centro.piani || [], pa = piani.find(p => p.id === caldaia.piano_attivo), rqp = caldaia.richiesta_piano, pr = rqp && piani.find(p => p.id === rqp.piano_id);
   if (pa) html += `<div class="card"><h2>Il tuo piano di manutenzione</h2><span class="chip ok">${esc(pa.nome)} attivo</span><ul class="plain">${descrPiano(pa).map(x => `<li>${x}</li>`).join('')}</ul></div>`;
-  else if (pr) html += `<div class="card"><h2>Piano di manutenzione</h2><span class="chip warn">Richiesta "${esc(pr.nome)}" in attesa di conferma</span>${rqp.prefs && rqp.prefs.man === 'libera' ? `<p class="count-hint">Orario preferito: ${esc(rqp.prefs.giorno)}, ${esc(rqp.prefs.fascia)}</p>` : ''}${MAILMSG}</div>`;
+  else if (pr) html += `<div class="card"><h2>Piano di manutenzione</h2><span class="chip warn">Richiesta "${esc(pr.nome)}" in attesa di conferma</span>${prefsHtml(rqp.prefs)}${MAILMSG}</div>`;
   else if (piani.length) html += `<div class="card"><h2>Piani di manutenzione</h2><button class="btn btn-primary btn-block" data-act="quiz" style="margin-bottom:12px">Trova la tua assistenza ideale</button>${piani.map(p => pianoCard(p)).join('')}</div>`;
   return html;
 }
@@ -137,7 +147,9 @@ function handleAct(act, b) {
   const chk = n => { const x = document.querySelector(`input[name=${n}]:checked`); return x ? x.value : ''; };
   const A = uCtx.code && ALBERI[uCtx.code];
   if (act === 'info') { const x = document.getElementById('infoBox'); x.style.display = x.style.display === 'none' ? 'block' : 'none'; return; }
-  if (act === 'home') uView = 'home';
+  if (act === 'home') { uView = 'home'; uCtx.al = null; }
+  else if (act === 'al-risolto') { aggiungiSegnalazione(matricola, { codice: uCtx.al.code, stato: 'risolta autonomamente' }); uCtx.al = null; uView = 'home'; }
+  else if (act === 'al-persiste') { uCtx.code = uCtx.al.code; uView = 'invia-guasto'; }
   else if (act === 'avvio') uView = 'avvio-centri';
   else if (act === 'invia-avvio') {
     if (!val('uNome').trim() || !val('uTel').trim()) { alert('Nome e telefono sono obbligatori.'); return; }
@@ -146,23 +158,35 @@ function handleAct(act, b) {
     uView = 'avvio-ok';
   }
   else if (act === 'quiz') uView = 'quiz';
-  else if (act === 'quiz-go') { uCtx.q = { man: chk('qMan'), giorno: val('qGiorno'), fascia: val('qFascia'), urg: chk('qUrg'), dom: chk('qDom') === 'si', ricambi: chk('qRic') === 'si' }; uView = 'quiz-ris'; }
+  else if (act === 'quiz-go') { uCtx.q = { man: chk('qMan'), giorno: val('qGiorno'), fascia: val('qFascia'), urg: chk('qUrg'), alt: chk('qUrg') === '48h' ? [...document.querySelectorAll('input[name=qAlt]:checked')].map(x => x.value) : [], dom: chk('qDom') === 'si', ricambi: chk('qRic') === 'si' }; uView = 'quiz-ris'; }
   else if (act === 'piano') { richiediPiano(matricola, b.dataset.id, uCtx.q || null); uView = 'home'; }
   else if (act === 'est-rich') richiediEstensione(matricola, b.dataset.tipo);
-  else if (act === 'est-ok') risolviEstensione(matricola, b.dataset.tipo, true);
-  else if (act === 'est-no') risolviEstensione(matricola, b.dataset.tipo, false);
+  else if (act === 'est-pre') preApprovaEstensione(matricola, b.dataset.tipo);
+  else if (act === 'est-ok' || act === 'est-no') { if (!risolviEstensione(matricola, b.dataset.tipo, act === 'est-ok')) { alert('Solo il master può approvare o rifiutare un contratto di estensione.'); return; } }
   else if (act === 'est-reg') {
+    if (currentTecnico().ruolo !== 'master') { alert('La registrazione dei contratti è riservata al master.'); return; }
     if (!val('eFine')) { alert('Indica la data di fine del contratto.'); return; }
     const tipo = val('eTipo'); aggiungiEstensione(matricola, { tipo, nome: tipo === 'produttore' ? ESTENSIONE_BAXI.nome : ((getCentro(currentTecnico().centro_id).estensione || {}).nome || 'Estensione del centro'), inizio: isoOff(0), fine: val('eFine') });
   }
-  else if (act === 'conferma-piano') mutaCaldaia(matricola, c => { c.piano_attivo = c.richiesta_piano.piano_id; c.richiesta_piano = null; });
-  else if (act === 'rifiuta-piano') mutaCaldaia(matricola, c => { c.richiesta_piano = null; });
+  else if (act === 'conferma-piano') decidiPiano(matricola, true);
+  else if (act === 'rifiuta-piano') decidiPiano(matricola, false);
   else if (act === 'guasto') uView = 'guasto';
   else if (act === 'codice') { uCtx.code = b.dataset.code; uCtx.node = ALBERI[uCtx.code].start; uView = 'albero'; }
   else if (act === 'codice-altro') { uCtx.code = val('codiceAltro').trim().toUpperCase() || 'N/D'; if (ALBERI[uCtx.code]) { uCtx.node = ALBERI[uCtx.code].start; uView = 'albero'; } else uView = 'invia-guasto'; }
   else if (act === 'si' || act === 'no') { const nx = A.n[uCtx.node][act]; if (nx === 'ok') uView = 'risolto'; else if (nx === 'tec') uView = 'invia-guasto'; else if (nx === 'gas') uView = 'gas'; else uCtx.node = nx; }
   else if (act === 'risolto-fine') { aggiungiSegnalazione(matricola, { codice: uCtx.code, stato: 'risolta autonomamente' }); uView = 'home'; }
   else if (act === 'invia-guasto') { aggiungiSegnalazione(matricola, { codice: uCtx.code, descrizione: val('gDesc'), contatto: val('gTel'), stato: 'inviata al centro' }); uView = 'guasto-ok'; }
+  else if (act === 'prop-open') tView = 'proprietario';
+  else if (act === 'prop-annulla') tView = 'home';
+  else if (act === 'prop-conferma') {
+    const g = id => document.getElementById(id);
+    if (!val('pNome').trim() || !val('pTel').trim() || !val('pData')) { alert('Nome, telefono e data del passaggio sono obbligatori.'); return; }
+    if (!g('pVer').checked) { alert('Verifica il passaggio di proprietà (atto, contratto o dichiarazione firmata) prima di procedere.'); return; }
+    if (!g('pPriv').checked) { alert('Serve il consenso del nuovo proprietario al trattamento dei dati.'); return; }
+    cambioProprietario(matricola, { nome: val('pNome').trim(), telefono: val('pTel').trim(), email: val('pMail').trim(), posizione: val('pInd').trim(), data: val('pData'), privacy: true, marketing: g('pMkt').checked, manteniContratti: g('pTieni').checked, operatore: currentTecnico().nome });
+    flash = 'Cambio proprietario registrato. I dati del precedente proprietario sono archiviati. Mail inviata al nuovo proprietario per l\'accesso e al precedente per informarlo (demo).';
+    tView = 'home';
+  }
   else if (act === 'rottama-open') tView = 'rottama';
   else if (act === 'rottama-annulla') tView = 'home';
   else if (act === 'rottama-conferma') {
@@ -215,17 +239,19 @@ function primaAccensioneForm(centro, centroLoggato) {
     <div class="hint" id="offNote" style="display:none">Sei offline: la prima accensione verrà salvata come bozza firmata sul dispositivo. Dopo la firma non sarà più modificabile e potrai inviarla quando torna la rete.</div>
     <button class="btn btn-primary btn-block" id="submitPrimaAccensione" style="margin-top:16px">Conferma prima accensione</button></div>`;
 }
-function estensioniTecnicoHtml(c) {
+function estensioniTecnicoHtml(c, master) {
   const sez = (tipo, titolo) => { const l = (c.estensioni || []).filter(e => e.tipo === tipo), rq = (c.richieste_estensione || {})[tipo];
     return `<h3>${titolo}</h3>` + (l.map(e => `<div class="data-row"><span>${esc(e.nome)}</span><span class="v">${formatData(e.inizio)} → ${formatData(e.fine)}</span></div>`).join('') || '<p class="count-hint" style="margin:0 0 8px">Nessun contratto.</p>') +
-      (rq ? `<div class="alert warn">Richiesta del cliente del ${formatData(rq.data)}<div style="display:flex;gap:10px;margin-top:8px"><button class="btn btn-primary" style="flex:1" data-act="est-ok" data-tipo="${tipo}">Conferma</button><button class="btn btn-secondary" style="flex:1" data-act="est-no" data-tipo="${tipo}">Rifiuta</button></div></div>` : ''); };
+      (rq ? `<div class="alert warn">Richiesta del cliente del ${formatData(rq.data)}${rq.stato === 'pre-approvata' ? ` · <strong>pre-approvata da ${esc(rq.preDa)}</strong>` : ''}` + (master
+        ? `<div style="display:flex;gap:10px;margin-top:8px"><button class="btn btn-primary" style="flex:1" data-act="est-ok" data-tipo="${tipo}">Approva definitivamente</button><button class="btn btn-secondary" style="flex:1" data-act="est-no" data-tipo="${tipo}">Rifiuta</button></div><div class="count-hint">I contratti si firmano fuori dal portale: l'approvazione definitiva spetta al master.</div>`
+        : (rq.stato === 'richiesta' ? `<div style="margin-top:8px"><button class="btn btn-secondary btn-block" data-act="est-pre" data-tipo="${tipo}">Pre-approva</button></div><div class="count-hint">L'approvazione definitiva spetta al master.</div>` : `<div class="count-hint">In attesa dell'approvazione definitiva del master.</div>`)) + `</div>` : ''); };
   return `<div class="card"><h2>Contratti di estensione</h2>${sez('produttore', 'Estensione del produttore (Baxi)')}${sez('centro', 'Estensione del centro (fuori garanzia produttore)')}
-    <h3>Registra un contratto</h3><div class="field-row"><div><select id="eTipo"><option value="produttore">Produttore (Baxi)</option><option value="centro">Centro assistenza</option></select></div><div><input type="date" id="eFine"></div></div>
-    <button class="btn btn-secondary btn-block" data-act="est-reg" style="margin-top:10px">Registra</button></div>`;
+    ${master ? `<h3>Registra un contratto</h3><div class="field-row"><div><select id="eTipo"><option value="produttore">Produttore (Baxi)</option><option value="centro">Centro assistenza</option></select></div><div><input type="date" id="eFine"></div></div>
+    <button class="btn btn-secondary btn-block" data-act="est-reg" style="margin-top:10px">Registra</button>` : '<p class="count-hint">La registrazione dei contratti è riservata al master.</p>'}</div>`;
 }
 function renderTecnico(caldaia) {
   const tecnico = currentTecnico(), centroLoggato = tecnico.centro_id, centro = getCentro(centroLoggato);
-  let html = `<div class="card"><h1>Caldaia <span class="matricola">${esc(matricola)}</span></h1><p class="lede" style="margin:6px 0 0">Accesso come <strong>${tecnico.nome}</strong> — ${centro.nome}</p></div>`;
+  let html = `<div class="card"><h1>Caldaia <span class="matricola">${esc(matricola)}</span></h1><p class="lede" style="margin:6px 0 0">Accesso come <strong>${tecnico.nome}</strong> — ${centro.nome}</p><div class="svc-grid" style="margin-top:10px"><label><input type="checkbox" id="simOffline" ${sessionStorage.getItem('caldaia_sim_offline') === '1' ? 'checked' : ''}><span>Simula assenza di rete (demo bozze offline)</span></label></div></div>`;
   if (flash) { html += `<div class="card"><span class="chip ok">Fatto</span><p style="margin:10px 0 0;line-height:1.5">${flash}</p></div>`; flash = ''; }
   if (tecnico.ruolo === 'master') html += `<div class="card"><h2>Area master</h2><a class="btn btn-secondary btn-block" href="configuratore.html">Configuratore, richieste e team →</a></div>`;
   html += bozzeHtml(centroLoggato);
@@ -240,11 +266,11 @@ function renderTecnico(caldaia) {
     <div class="data-row"><span class="k">Installazione</span><span class="v">${formatData(caldaia.data_installazione)}</span></div>
     <div class="data-row"><span class="k">Avviamento</span><span class="v">${formatData(caldaia.data_avviamento)}</span></div>
     ${pa0 && pa0.installatore ? `<div class="data-row"><span class="k">Installatore</span><span class="v">${esc(pa0.installatore.ragione)}</span></div>` : ''}</div>`;
-  html += scadenzeHtml(caldaia) + estensioniTecnicoHtml(caldaia);
+  html += scadenzeHtml(caldaia) + estensioniTecnicoHtml(caldaia, tecnico.ruolo === 'master');
   html += `<div class="card"><h2>Interventi</h2><div id="listaInterventi">${caldaia.interventi.length ? caldaia.interventi.map(i => `<div class="intervento"><span>${esc(i.tipo)} — ${esc(i.tecnico)}</span><span class="data">${formatData(i.data)}</span></div>`).join('') : `<div class="empty-state" style="padding:12px 0">Nessun intervento registrato.</div>`}</div><button class="btn btn-secondary btn-block" id="aggiungiInterventoBtn" style="margin-top:14px">+ Registra intervento</button></div>`;
   const piani = centro.piani || [], rq = caldaia.richiesta_piano, pa = piani.find(p => p.id === caldaia.piano_attivo), pr = rq && piani.find(p => p.id === rq.piano_id);
   html += `<div class="card"><h2>Piano di manutenzione</h2>` + (pa ? `<span class="chip ok">${esc(pa.nome)} attivo</span><ul class="plain">${descrPiano(pa).map(x => `<li>${x}</li>`).join('')}</ul>`
-    : pr ? `<span class="chip warn">Richiesta "${esc(pr.nome)}" del ${formatData(rq.data)}</span>${rq.prefs && rq.prefs.man === 'libera' ? `<p class="count-hint">Orario preferito dal cliente: ${esc(rq.prefs.giorno)}, ${esc(rq.prefs.fascia)}</p>` : ''}<div style="display:flex;gap:10px;margin-top:12px"><button class="btn btn-primary" style="flex:1" data-act="conferma-piano">Conferma attivazione</button><button class="btn btn-secondary" style="flex:1" data-act="rifiuta-piano">Rifiuta</button></div>`
+    : pr ? `<span class="chip warn">Richiesta "${esc(pr.nome)}" del ${formatData(rq.data)}</span>${prefsHtml(rq.prefs)}<div style="display:flex;gap:10px;margin-top:12px"><button class="btn btn-primary" style="flex:1" data-act="conferma-piano">Conferma attivazione</button><button class="btn btn-secondary" style="flex:1" data-act="rifiuta-piano">Rifiuta</button></div>`
     : `<p class="lede" style="margin:0">Nessun piano attivo né richieste in attesa.</p>`) + `</div>`;
   const seg = (caldaia.segnalazioni || []).slice().reverse();
   html += `<div class="card"><h2>Segnalazioni guasto</h2>` + (seg.length ? seg.map(g => `<div class="intervento"><span>${esc(g.codice)} — ${esc(g.stato)}${g.descrizione ? '<br><small>' + esc(g.descrizione) + '</small>' : ''}${g.contatto ? '<br><small>Tel. ' + esc(g.contatto) + '</small>' : ''}</span><span class="data">${formatData(g.data)}</span></div>`).join('') : `<div class="empty-state" style="padding:12px 0">Nessuna segnalazione.</div>`) + `</div>`;
@@ -253,7 +279,13 @@ function renderTecnico(caldaia) {
     <label for="rMat">Matricola nuova caldaia Baxi</label><input type="text" id="rMat" placeholder="es. CH-2026-0001">
     <label for="rDesc">Cosa hanno installato</label><input type="text" id="rDesc" placeholder="marca e modello">
     <div style="display:flex;gap:10px;margin-top:16px"><button class="btn btn-primary" style="flex:1" data-act="rottama-conferma">Conferma rottamazione</button><button class="btn btn-secondary" style="flex:1" data-act="rottama-annulla">Annulla</button></div></div>`;
-  else html += `<button class="btn btn-secondary btn-block" data-act="rottama-open">Segnala rottamazione</button>`;
+  else if (tView === 'proprietario') html += `<div class="card wide"><h2>Cambio proprietario</h2><p class="lede">Solo il centro assistenza può registrare il passaggio: raccogli i dati e i consensi del nuovo proprietario.</p>
+    <div class="alert warn"><strong>Cosa succede</strong><ul class="plain"><li>I dati del proprietario attuale vengono archiviati al centro e non saranno più visibili al nuovo.</li><li>Lo storico tecnico (interventi, estensione Baxi) resta alla caldaia.</li><li>Le richieste aperte sono annullate; le segnalazioni passate restano senza dati di contatto.</li><li>Piano di manutenzione ed estensione del centro restano solo se lo confermi qui sotto.</li><li>Il precedente proprietario perde l'accesso e viene avvisato; il nuovo riceve l'invito (demo).</li></ul></div>
+    <h3>Nuovo proprietario</h3><label for="pNome">Nome e cognome *</label><input type="text" id="pNome"><div class="field-row"><div><label for="pTel">Telefono *</label><input type="text" id="pTel"></div><div><label for="pMail">Email</label><input type="text" id="pMail"></div></div>
+    <label for="pInd">Indirizzo dell'impianto</label><input type="text" id="pInd" value="${esc(caldaia.utente && caldaia.utente.posizione)}"><label for="pData">Data del passaggio *</label><input type="date" id="pData" value="${isoOff(0)}">
+    <div class="svc-grid" style="margin-top:14px"><label><input type="checkbox" id="pVer"><span>Ho verificato il passaggio di proprietà (atto, contratto o dichiarazione firmata) *</span></label><label><input type="checkbox" id="pPriv"><span>Il nuovo proprietario ha letto l'<a href="#">informativa privacy</a> e acconsente al trattamento dei dati *</span></label><label><input type="checkbox" id="pMkt"><span>Comunicazioni commerciali (facoltativo)</span></label><label><input type="checkbox" id="pTieni"><span>Mantieni attivi piano di manutenzione ed estensione del centro</span></label></div>
+    <div style="display:flex;gap:10px;margin-top:16px"><button class="btn btn-primary" style="flex:1" data-act="prop-conferma">Registra il cambio</button><button class="btn btn-secondary" style="flex:1" data-act="prop-annulla">Annulla</button></div></div>`;
+  else html += `<button class="btn btn-secondary btn-block" data-act="prop-open">Cambio proprietario</button><button class="btn btn-secondary btn-block" style="margin-top:10px" data-act="rottama-open">Segnala rottamazione</button>`;
   return html;
 }
 
@@ -263,6 +295,8 @@ function comprimi(file) {
 }
 function attachHandlers(caldaia) {
   const el = id => document.getElementById(id);
+  if (el('simOffline')) el('simOffline').addEventListener('change', () => { sessionStorage.setItem('caldaia_sim_offline', el('simOffline').checked ? '1' : '0'); aggiornaBtnOffline(); });
+  document.querySelectorAll('select[data-alm]').forEach(sel => sel.addEventListener('change', () => { uCtx.al = sel.value ? { tipo: sel.dataset.alm, code: sel.value } : null; render(); }));
   if (el('cercaCapBtn')) el('cercaCapBtn').addEventListener('click', () => mostraRisultatiCentri(elencoCentriOrdinatiPerVicinanza(el('capInput').value)));
   if (el('usaPosizioneBtn')) el('usaPosizioneBtn').addEventListener('click', () => {
     if (!navigator.geolocation) { alert('Geolocalizzazione non disponibile su questo dispositivo.'); return; }

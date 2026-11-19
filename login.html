@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accesso tecnici</title>
+<link rel="stylesheet" href="style.css">
+<script src="i18n.js"></script>
+<script src="theme.js"></script>
+</head>
+<body>
+<div class="wrap narrow">
+  <header class="top">
+    <div class="brand"><strong>Caldaia</strong> · accesso</div>
+    <div class="hdr-actions"><a class="brand" href="index.html" style="text-decoration:none">← scanner</a></div>
+  </header>
+  <div class="card">
+    <h1>Accesso tecnici e installatori</h1>
+    <p class="lede">Login dimostrativo: scegli chi sei. Nella versione reale l'accesso avverrà con le credenziali aziendali.</p>
+    <label for="who">Accedi come</label><select id="who"></select>
+    <button class="btn btn-primary btn-block" id="go" style="margin-top:16px">Accedi</button>
+    <p class="count-hint">I clienti non devono accedere: basta inquadrare il QR sulla caldaia.</p>
+  </div>
+</div>
+<script src="app.js"></script>
+<script>
+const db = getDb(), who = document.getElementById('who');
+const g1 = document.createElement('optgroup'); g1.label = 'Centri assistenza';
+db.tecnici.forEach(t => g1.appendChild(new Option(`${t.nome} (${t.ruolo}) — ${getCentro(t.centro_id).nome}`, 'staff:' + t.id)));
+who.appendChild(g1);
+if ((db.installatori || []).length) { const g2 = document.createElement('optgroup'); g2.label = 'Installatori'; db.installatori.forEach(i => g2.appendChild(new Option(`${i.referente} — ${i.ragione}`, 'installer:' + i.id))); who.appendChild(g2); }
+const cur = getSession(); if (cur) who.value = cur.tipo + ':' + cur.id;
+document.getElementById('go').addEventListener('click', () => {
+  const [tipo, id] = who.value.split(':'); setSession({ tipo, id });
+  location.href = tipo === 'staff' ? (safeNext(getParam('next')) || 'staff.html') : 'installatore.html';
+});
+</script>
+</body>
+</html>

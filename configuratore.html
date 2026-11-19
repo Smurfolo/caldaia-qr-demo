@@ -5,42 +5,41 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Configuratore manutenzione</title>
 <link rel="stylesheet" href="style.css">
+<script src="i18n.js"></script>
 <script src="theme.js"></script>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <div class="brand"><strong>Caldaia</strong> · area master</div>
-    <a class="brand" href="index.html" style="text-decoration:none">← home</a>
+    <div class="hdr-actions"><a class="brand" href="staff.html" style="text-decoration:none">← area tecnici</a><span id="authBox" class="brand"></span></div>
   </header>
-  <div class="card"><label for="who">Accedi come (login finto)</label><select id="who"></select></div>
   <div class="desk">
 <div id="reqs"></div>
+  <div id="estreq"></div>
   <div id="due"></div>
+  <div id="stats"></div>
   <div id="main"></div>
+  <div id="baxi"></div>
   <div id="ext"></div>
   <div id="team"></div>
+  <div id="audit"></div>
   </div>
 </div>
 <script src="app.js"></script>
 <script>
-const who = document.getElementById('who'), main = document.getElementById('main'), team = document.getElementById('team'), reqs = document.getElementById('reqs'), ext = document.getElementById('ext'), due = document.getElementById('due');
+if (!currentStaff()) { location.replace('login.html?next=configuratore.html'); throw new Error('redirect'); }
+renderAuthBox(document.getElementById('authBox'));
+const who = { value: currentStaff().id }, main = document.getElementById('main'), team = document.getElementById('team'), reqs = document.getElementById('reqs'), ext = document.getElementById('ext'), estreq = document.getElementById('estreq'), stats = document.getElementById('stats'), baxi = document.getElementById('baxi'), audit = document.getElementById('audit'), due = document.getElementById('due');
 const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-function fillWho(keep) {
-  const d = getDb(); who.innerHTML = '';
-  d.tecnici.forEach(t => who.add(new Option(`${t.nome} (${t.ruolo}) — ${getCentro(t.centro_id).nome}`, t.id)));
-  who.value = keep; if (!who.value) who.value = d.tecnici[0].id;
-}
-fillWho(localStorage.getItem('caldaia_demo_tecnico'));
-who.addEventListener('change', () => { localStorage.setItem('caldaia_demo_tecnico', who.value); load(); });
 let piani = [], centroId = null;
 
 function load() {
   const t = getDb().tecnici.find(x => x.id === who.value);
-  if (t.ruolo !== 'master') { team.innerHTML = reqs.innerHTML = due.innerHTML = ext.innerHTML = ''; main.innerHTML = '<div class="card empty-state">Il configuratore è riservato ai master del centro.</div>'; return; }
+  if (t.ruolo !== 'master') { team.innerHTML = reqs.innerHTML = due.innerHTML = ext.innerHTML = estreq.innerHTML = stats.innerHTML = baxi.innerHTML = audit.innerHTML = ''; main.innerHTML = '<div class="card empty-state">Il configuratore è riservato ai master del centro.</div>'; return; }
   centroId = t.centro_id;
   piani = JSON.parse(JSON.stringify(getCentro(centroId).piani || []));
-  draw(); drawTeam(); drawReqs(); drawDue(); drawExt();
+  draw(); drawTeam(); drawReqs(); drawDue(); drawExt(); drawEstReq(); drawStats(); drawBaxi(); drawAudit();
 }
 function drawReqs() {
   const l = (getDb().richieste_avvio || []).filter(r => r.centro_id === centroId).reverse(), cls = { 'in attesa': 'warn', accettata: 'ok', completata: 'ok', rifiutata: 'warn' };
@@ -55,12 +54,52 @@ function drawDue() {
   const l = rows.filter(r => r.s.giorni <= 60).sort((a, b) => a.s.giorni - b.s.giorni);
   due.innerHTML = `<div class="card"><h2>Scadenze nei prossimi 60 giorni</h2>` + (l.length ? l.map(r => `<div class="intervento"><span><a href="${BRANDS[r.c.marchio || 'baxi'].page}?id=${encodeURIComponent(r.c.matricola)}">${esc(r.c.matricola)}</a> — ${r.tipo}${r.c.utente ? '<br><small>' + esc(r.c.utente.nome) + '</small>' : ''}</span><span class="chip ${r.s.cls}">${r.s.testo}</span></div>`).join('') : `<div class="empty-state" style="padding:12px 0">Nessuna scadenza imminente.</div>`) + `</div>`;
 }
-reqs.addEventListener('click', e => { const b = e.target.closest('[data-rq]'); if (b) { aggiornaRichiesta(b.dataset.id, b.dataset.rq); drawReqs(); } });
+reqs.addEventListener('click', e => { const b = e.target.closest('[data-rq]'); if (b) { aggiornaRichiesta(b.dataset.id, b.dataset.rq); drawReqs(); drawStats(); drawAudit(); } });
 function drawExt() {
   const e = getCentro(centroId).estensione || {};
-  ext.innerHTML = `<div class="card"><h2>Estensione del centro</h2><p class="count-hint" style="margin-top:0">Contratto offerto agli utenti, garantito dal centro anche fuori garanzia del produttore.</p><label>Nome</label><input type="text" id="extNome" value="${esc(e.nome)}"><div class="field-row"><div><label>Durata (mesi)</label><input type="text" id="extMesi" value="${e.mesi || ''}"></div><div><label>Prezzo €</label><input type="text" id="extPrezzo" value="${e.prezzo || ''}"></div></div><button class="btn btn-primary btn-block" id="extSave" style="margin-top:12px">Salva</button><div class="count-hint" id="extMsg"></div></div>`;
+  ext.innerHTML = `<div class="card"><h2>Prezzi ed estensione del centro</h2><div class="svc-grid"><label><input type="checkbox" id="prezziToggle" ${getCentro(centroId).mostra_prezzi !== false ? 'checked' : ''}><span>Mostra i prezzi ai clienti (piani ed estensioni). Se disattivato il cliente vede "su richiesta".</span></label></div><h3>Estensione del centro</h3><p class="count-hint" style="margin-top:0">Contratto offerto agli utenti, garantito dal centro anche fuori garanzia del produttore.</p><label>Nome</label><input type="text" id="extNome" value="${esc(e.nome)}"><div class="field-row"><div><label>Durata (mesi)</label><input type="text" id="extMesi" value="${e.mesi || ''}"></div><div><label>Prezzo €</label><input type="text" id="extPrezzo" value="${e.prezzo || ''}"></div></div><button class="btn btn-primary btn-block" id="extSave" style="margin-top:12px">Salva</button><div class="count-hint" id="extMsg"></div></div>`;
 }
-ext.addEventListener('click', e => { if (e.target.id !== 'extSave') return; const d = getDb(); d.centri.find(c => c.id === centroId).estensione = { nome: document.getElementById('extNome').value.trim() || 'Estensione del centro', mesi: parseInt(document.getElementById('extMesi').value, 10) || 24, prezzo: parseInt(document.getElementById('extPrezzo').value, 10) || null }; saveDb(d); document.getElementById('extMsg').textContent = 'Salvato.'; });
+ext.addEventListener('change', e => { if (e.target.id !== 'prezziToggle') return; const d = getDb(); d.centri.find(c => c.id === centroId).mostra_prezzi = e.target.checked; saveDb(d); logAudit(centroId, e.target.checked ? 'Prezzi mostrati ai clienti' : 'Prezzi nascosti ai clienti ("su richiesta")'); drawAudit(); });
+ext.addEventListener('click', e => { if (e.target.id !== 'extSave') return; const d = getDb(); d.centri.find(c => c.id === centroId).estensione = { nome: document.getElementById('extNome').value.trim() || 'Estensione del centro', mesi: parseInt(document.getElementById('extMesi').value, 10) || 24, prezzo: parseInt(document.getElementById('extPrezzo').value, 10) || null }; saveDb(d); logAudit(centroId, 'Estensione del centro aggiornata'); drawAudit(); document.getElementById('extMsg').textContent = 'Salvato.'; });
+let pendingBaxi = null;
+function drawBaxi() {
+  baxi.innerHTML = `<div class="card"><h2>Baxi consiglia</h2><p class="count-hint" style="margin-top:0">Proposte pensate da Baxi. Aggiungendole copi solo i parametri predefiniti (servizi, orari, urgenze, ricambi): il prezzo lo imposti tu e puoi modificarle liberamente.</p>` +
+    BAXI_CONSIGLIA.map((b, i) => `<div class="plan"><strong>${esc(b.nome)}</strong><div class="count-hint" style="margin:2px 0 6px">${esc(b.descr)}</div><ul>${descrPiano(b).map(x => `<li>${x}</li>`).join('')}</ul><button class="btn btn-secondary btn-block" data-bx="${i}">Aggiungi alle mie proposte</button></div>`).join('') +
+    (pendingBaxi ? `<div class="alert warn"><strong>Hai già 3 proposte.</strong> Quale vuoi sostituire con "${esc(pendingBaxi.nome)}"?<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${piani.map((p, k) => `<button class="btn btn-secondary" data-bxrep="${k}">Proposta ${k + 1}: ${esc(p.nome)}</button>`).join('')}<button class="btn btn-secondary" data-bxrep="no">Annulla</button></div></div>` : '') + `<div class="count-hint" id="bxMsg"></div></div>`;
+}
+baxi.addEventListener('click', e => {
+  const i = e.target.dataset.bx, k = e.target.dataset.bxrep;
+  if (i !== undefined) {
+    const b = BAXI_CONSIGLIA[i], nuovo = { id: 'p' + Date.now(), nome: b.nome, servizi: b.servizi.slice(), man: b.man, urg: b.urg, dom: b.dom, ricambi: b.ricambi, prezzo: null, origine: 'baxi' };
+    if (piani.length < 3) { piani.push(nuovo); salvaPiani(centroId, piani); draw(); drawAudit(); drawBaxi(); document.getElementById('bxMsg').textContent = `La proposta "${b.nome}" è stata aggiunta alle tue proposte (imposta il prezzo e salva).`; }
+    else { pendingBaxi = nuovo; drawBaxi(); }
+  } else if (k !== undefined) {
+    if (k === 'no') { pendingBaxi = null; drawBaxi(); return; }
+    const nome = pendingBaxi.nome; piani[k] = pendingBaxi; salvaPiani(centroId, piani); draw(); drawAudit(); pendingBaxi = null; drawBaxi();
+    document.getElementById('bxMsg').textContent = `La proposta ${+k + 1} è stata sostituita con "${nome}".`;
+  }
+});
+function drawEstReq() {
+  const rows = [];
+  Object.values(getDb().caldaie).filter(c => c.centro_id === centroId).forEach(c => Object.entries(c.richieste_estensione || {}).forEach(([t, r]) => rows.push({ c, t, r })));
+  estreq.innerHTML = `<div class="card"><h2>Estensioni da approvare</h2><p class="count-hint" style="margin-top:0">I contratti si firmano fuori dal portale: l'approvazione definitiva è del master. I tecnici possono solo pre-approvare.</p>` + (rows.length ? rows.map(({ c, t, r }) => `<div class="plan"><div class="data-row"><strong>${esc(c.matricola)}</strong><span class="chip ${r.stato === 'pre-approvata' ? 'ok' : 'warn'}">${r.stato}</span></div><div class="count-hint" style="margin:0 0 8px">${t === 'produttore' ? 'Estensione Baxi' : 'Estensione del centro'} · ${c.utente ? esc(c.utente.nome) : ''} · ${formatData(r.data)}${r.preDa ? '<br>Pre-approvata da ' + esc(r.preDa) : ''}</div><div style="display:flex;gap:10px"><button class="btn btn-primary" style="flex:1" data-ea="ok" data-m="${esc(c.matricola)}" data-t="${t}">Approva definitivamente</button><button class="btn btn-secondary" style="flex:1" data-ea="no" data-m="${esc(c.matricola)}" data-t="${t}">Rifiuta</button></div></div>`).join('') : `<div class="empty-state" style="padding:12px 0">Nessuna richiesta di estensione.</div>`) + `</div>`;
+}
+estreq.addEventListener('click', e => { const b = e.target.closest('[data-ea]'); if (!b) return; risolviEstensione(b.dataset.m, b.dataset.t, b.dataset.ea === 'ok'); drawEstReq(); drawDue(); drawStats(); drawAudit(); });
+function drawStats() {
+  const d = getDb(), bs = Object.values(d.caldaie).filter(c => c.centro_id === centroId && c.stato !== 'rottamata');
+  const seg = bs.flatMap(c => c.segnalazioni || []), auto = seg.filter(s => s.stato === 'risolta autonomamente').length, cod = {};
+  seg.forEach(s => { cod[s.codice] = (cod[s.codice] || 0) + 1; });
+  const top = Object.entries(cod).sort((a, b) => b[1] - a[1]).slice(0, 5), max = top.length ? top[0][1] : 1, sem = { ok: 0, warn: 0, bad: 0 };
+  bs.forEach(c => { const s = coperturaRicambi(c); if (sem[s.cls] !== undefined) sem[s.cls]++; });
+  const ritardo = bs.filter(c => { const pm = prossimaManutenzione(c); return pm && giorniA(pm) < 0; }).length;
+  const rq = (d.richieste_avvio || []).filter(r => r.centro_id === centroId), acc = rq.filter(r => r.stato === 'accettata' || r.stato === 'completata').length;
+  const bar = (l, v, m, cls) => `<div class="bar-row"><span>${l}</span><div class="bar"><i class="${cls || ''}" style="width:${m ? Math.round(v / m * 100) : 0}%"></i></div><b>${v}</b></div>`;
+  stats.innerHTML = `<div class="card"><h2>Statistiche</h2><div class="stat-grid"><div><b>${seg.length ? Math.round(auto / seg.length * 100) : 0}%</b><span>guasti risolti in autonomia (${auto} su ${seg.length})</span></div><div><b>${bs.length}</b><span>caldaie in gestione</span></div><div><b>${ritardo}</b><span>manutenzioni in ritardo</span></div><div><b>${rq.length ? Math.round(acc / rq.length * 100) : 0}%</b><span>richieste di avviamento accettate (${acc} su ${rq.length})</span></div></div><h3>Codici errore più frequenti</h3>` + (top.length ? top.map(([k, v]) => bar(esc(k), v, max)).join('') : '<p class="count-hint">Nessuna segnalazione.</p>') + `<h3>Copertura ricambi delle caldaie</h3>` + bar('Gratuiti', sem.ok, bs.length, 'ok') + bar('A rischio', sem.warn, bs.length, 'warn') + bar('A pagamento', sem.bad, bs.length, 'bad') + `</div>`;
+}
+function drawAudit() {
+  const l = (getDb().audit || []).filter(a => a.centro_id === centroId).slice(-40).reverse();
+  audit.innerHTML = `<div class="card"><h2>Storico modifiche</h2><p class="count-hint" style="margin-top:0">Visibile solo ai master.</p>` + (l.length ? l.map(a => `<div class="intervento"><span><strong>${esc(a.azione)}</strong>${a.dettaglio ? '<br><small>' + esc(a.dettaglio) + '</small>' : ''}${a.matricola ? '<br><small>' + esc(a.matricola) + '</small>' : ''}<br><small>${esc(a.chi)}</small></span><span class="data">${new Date(a.t).toLocaleString(window.LANG === 'en' ? 'en-GB' : 'it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span></div>`).join('') : `<div class="empty-state" style="padding:12px 0">Nessuna modifica registrata.</div>`) + `</div>`;
+}
 function drawTeam() {
   const d = getDb(), me = who.value, mem = d.tecnici.filter(t => t.centro_id === centroId);
   team.innerHTML = `<div class="card"><h2>Team del centro</h2>` + mem.map(t => `<div class="data-row" style="align-items:center"><span>${t.nome}${t.id === me ? ' (tu)' : ''}</span><span style="display:flex;gap:6px"><select data-role="${t.id}" style="width:auto" ${t.id === me ? 'disabled' : ''}><option ${t.ruolo === 'tecnico' ? 'selected' : ''}>tecnico</option><option ${t.ruolo === 'master' ? 'selected' : ''}>master</option></select><button class="btn btn-secondary" data-rm="${t.id}" ${t.id === me ? 'disabled' : ''}>Rimuovi</button></span></div>`).join('') +
@@ -90,17 +129,17 @@ main.addEventListener('click', e => {
   const t = e.target;
   if (t.dataset.del !== undefined) { piani.splice(t.dataset.del, 1); draw(); }
   else if (t.id === 'add') { piani.push({ id: 'p' + Date.now(), nome: 'Nuovo piano', servizi: [SERVIZI[0]], man: 'ufficio', urg: '48h', dom: false, ricambi: false, prezzo: null }); draw(); }
-  else if (t.id === 'save') { salvaPiani(centroId, piani); document.getElementById('msg').textContent = 'Salvato. Gli utenti vedono ora queste offerte.'; }
+  else if (t.id === 'save') { salvaPiani(centroId, piani); drawAudit(); document.getElementById('msg').textContent = 'Salvato. Gli utenti vedono ora queste offerte.'; }
 });
-function mutaTeam(fn) { const d = getDb(); fn(d); saveDb(d); fillWho(who.value); drawTeam(); }
-team.addEventListener('change', e => { const id = e.target.dataset.role; if (id) mutaTeam(d => { d.tecnici.find(t => t.id === id).ruolo = e.target.value; }); });
+function mutaTeam(fn, az) { const d = getDb(); fn(d); saveDb(d); drawTeam(); logAudit(centroId, az || 'Team aggiornato'); drawAudit(); }
+team.addEventListener('change', e => { const id = e.target.dataset.role; if (id) mutaTeam(d => { d.tecnici.find(t => t.id === id).ruolo = e.target.value; }, 'Ruolo modificato'); });
 team.addEventListener('click', e => {
   const rm = e.target.dataset.rm;
-  if (rm && confirm('Rimuovere questo membro dal team?')) mutaTeam(d => { d.tecnici = d.tecnici.filter(t => t.id !== rm); });
+  if (rm && confirm('Rimuovere questo membro dal team?')) mutaTeam(d => { d.tecnici = d.tecnici.filter(t => t.id !== rm); }, 'Membro rimosso dal team');
   else if (e.target.id === 'addTech') {
     const nome = document.getElementById('newName').value.trim(); if (!nome) { alert('Inserisci il nome.'); return; }
     const ruolo = document.getElementById('newRole').value;
-    mutaTeam(d => d.tecnici.push({ id: 't' + Date.now(), nome, centro_id: centroId, ruolo }));
+    mutaTeam(d => d.tecnici.push({ id: 't' + Date.now(), nome, centro_id: centroId, ruolo }), 'Membro aggiunto al team');
   }
 });
 load();

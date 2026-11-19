@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Genera etichette QR</title>
 <link rel="stylesheet" href="style.css">
+<script src="i18n.js"></script>
 <script src="theme.js"></script>
 </head>
 <body>
 <div class="wrap narrow">
   <header class="top">
     <div class="brand"><strong>Caldaia</strong> · assistenza</div>
-    <a class="brand" href="index.html" style="text-decoration:none">← scanner</a>
+    <div class="hdr-actions"><a class="brand" href="staff.html" style="text-decoration:none">← area tecnici</a><span id="authBox" class="brand"></span></div>
   </header>
 
   <div class="card">
@@ -21,6 +22,9 @@
     <label for="matricoleInput">Matricole</label>
     <textarea id="matricoleInput" placeholder="CH-2019-0012&#10;CH-2019-0013&#10;CH-2020-0301&#10;…"></textarea>
     <div class="count-hint" id="countHint">0 matricole — 0 fogli</div>
+    <div class="svc-grid" style="margin-top:10px"><label><input type="checkbox" id="escludiEsist" checked><span>Escludi le matricole già presenti nel sistema</span></label></div>
+    <label for="csvFile">Oppure importa da file CSV / TXT (prima colonna)</label><input type="file" id="csvFile" accept=".csv,.txt,text/csv,text/plain">
+    <div id="qc"></div>
 
     <label for="brandSel">Marchio</label>
     <select id="brandSel"><option value="baxi">Baxi (landing standard)</option><option value="altro">Altro marchio (landing multimarca)</option></select>
@@ -49,6 +53,8 @@
 <script src="vendor/qrcode.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script>
+  if (!currentStaff()) { location.replace('login.html?next=etichette.html'); throw new Error('redirect'); }
+  renderAuthBox(document.getElementById('authBox'));
   const baseUrlInput = document.getElementById('baseUrlInput');
   // auto-rileva l'indirizzo di questa stessa installazione
   baseUrlInput.value = window.location.href.replace(/etichette\.html.*$/, 'caldaia.html');
@@ -56,18 +62,40 @@
   const textarea = document.getElementById('matricoleInput');
   const countHint = document.getElementById('countHint');
 
-  function parseMatricole() {
-    return [...new Set(
-      textarea.value.split('\n').map(s => s.trim()).filter(Boolean)
-    )];
+  const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const REGEX = /^[A-Z0-9][A-Z0-9_\-\/.]{5,29}$/;
+  function analizza() {
+    const righe = textarea.value.split(/[\n;,]+/).map(s => s.trim()).filter(Boolean), db = getDb();
+    const escl = document.getElementById('escludiEsist').checked, brand = document.getElementById('brandSel').value;
+    const visti = new Set(), valide = [], dup = [], inv = [], esist = [];
+    righe.forEach(r => {
+      const m = r.toUpperCase();
+      if (!REGEX.test(m)) { inv.push(r); return; }
+      if (visti.has(m)) { dup.push(m); return; } visti.add(m);
+      const e = db.caldaie[m];
+      if (e) { esist.push({ m, nota: e.stato === 'rottamata' ? 'rottamata' : e.centro_id ? 'già collegata a un centro' : 'già censita', marchio: (e.marchio || 'baxi') !== brand }); if (escl) return; }
+      valide.push(m);
+    });
+    return { valide, dup, inv, esist };
   }
-
+  function parseMatricole() { return analizza().valide; }
   function updateHint() {
-    const list = parseMatricole();
-    const fogli = Math.ceil(list.length / 9) || 0;
-    countHint.textContent = `${list.length} matricole — ${fogli} fogli${list.length ? '' : ''}`;
+    const a = analizza(), fogli = Math.ceil(a.valide.length / 9) || 0, li = arr => arr.slice(0, 8).join(', ') + (arr.length > 8 ? '…' : '');
+    countHint.textContent = `${a.valide.length} etichette da generare — ${fogli} fogli`;
+    document.getElementById('qc').innerHTML =
+      (a.dup.length ? `<div class="alert warn"><strong>${a.dup.length} duplicati</strong> ignorati: ${esc(li(a.dup))}</div>` : '') +
+      (a.inv.length ? `<div class="alert bad"><strong>${a.inv.length} con formato non valido</strong> (da 6 a 30 caratteri: lettere, numeri, - _ / .): ${esc(li(a.inv))}</div>` : '') +
+      (a.esist.length ? `<div class="alert warn"><strong>${a.esist.length} già presenti nel sistema</strong>: ${esc(li(a.esist.map(x => x.m + ' (' + x.nota + (x.marchio ? ', marchio diverso' : '') + ')')))}</div>` : '');
   }
   textarea.addEventListener('input', updateHint);
+  document.getElementById('escludiEsist').addEventListener('change', updateHint);
+  document.getElementById('brandSel').addEventListener('change', updateHint);
+  document.getElementById('csvFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    let righe = (await f.text()).split(/\r?\n/).map(r => r.split(/[;,\t]/)[0].trim()).filter(Boolean);
+    if (righe.length && ['matricola', 'matricole', 'serial', 'seriale'].includes(righe[0].toLowerCase())) righe = righe.slice(1);
+    textarea.value = (textarea.value.trim() ? textarea.value.trim() + '\n' : '') + righe.join('\n'); e.target.value = ''; updateHint();
+  });
   updateHint();
 
   async function qrDataUrl(text) {
@@ -140,7 +168,7 @@
         doc.setFont('courier', 'normal');
         doc.setFontSize(9);
         doc.text(it.matricola, x + cellW / 2, y + qrSize + 10, { align: 'center' });
-        if (brand !== 'baxi') { doc.setFontSize(7); doc.text(BRANDS[brand].nome, x + cellW / 2, y + qrSize + 14, { align: 'center' }); }
+        if (brand !== 'baxi') { doc.setFontSize(7); doc.text(tr(BRANDS[brand].nome), x + cellW / 2, y + qrSize + 14, { align: 'center' }); }
       });
 
       // Non chiamiamo doc.save() direttamente: dopo un'attesa asincrona molti

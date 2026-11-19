@@ -5,33 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Area installatore</title>
 <link rel="stylesheet" href="style.css">
+<script src="i18n.js"></script>
 <script src="theme.js"></script>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <div class="brand"><strong>Caldaia</strong> · area installatore</div>
-    <a class="brand" href="index.html" style="text-decoration:none">← home</a>
+    <div class="hdr-actions"><a class="brand" href="index.html" style="text-decoration:none">← scanner</a><span id="authBox" class="brand"></span></div>
   </header>
-  <div class="card"><label for="who">Accedi come (login finto)</label><select id="who"></select>
-    <p class="count-hint">I dati dell'installatore vengono presi in automatico quando un centro assistenza fa la prima accensione di una caldaia da lui installata.</p></div>
   <div class="desk" id="out"></div>
 </div>
 <script src="app.js"></script>
 <script>
-const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-const db = getDb(), who = document.getElementById('who'), out = document.getElementById('out');
-(db.installatori || []).forEach(i => who.add(new Option(`${i.referente} — ${i.ragione}`, i.id)));
-who.value = localStorage.getItem('caldaia_demo_installatore') || (db.installatori[0] || {}).id; if (!who.value && db.installatori[0]) who.value = db.installatori[0].id;
-who.addEventListener('change', () => { localStorage.setItem('caldaia_demo_installatore', who.value); draw(); });
-function draw() {
-  const i = db.installatori.find(x => x.id === who.value);
-  if (!i) { out.innerHTML = '<div class="card empty-state">Nessun installatore registrato: compaiono dopo la prima accensione fatta da un centro.</div>'; return; }
-  const mie = Object.values(db.caldaie).filter(c => c.prima_accensione && c.prima_accensione.installatore && c.prima_accensione.installatore.piva === i.piva);
-  out.innerHTML = `<div class="card"><h2>Centri che puoi contattare</h2>` + (i.centri.map(id => { const c = getCentro(id); return `<div class="plan"><strong>${esc(c.nome)}</strong><div class="count-hint" style="margin:2px 0 8px">${esc(c.comune)}</div><div style="display:flex;gap:10px"><a class="btn btn-primary" style="flex:1" href="tel:${c.telefono}">Chiama</a><a class="btn btn-secondary" style="flex:1" href="mailto:${c.email}">Scrivi</a></div></div>`; }).join('') || '<p class="lede">Nessun centro.</p>') + `<p class="count-hint">Puoi contattare solo i centri che hanno fatto la prima accensione di tue installazioni.</p></div>` +
-    (mie.length ? mie.map(c => `<div><div class="card"><h2>${esc(c.tipo)} <span class="matricola">${esc(c.matricola)}</span></h2><div class="data-row"><span class="k">Centro</span><span class="v">${esc(getCentro(c.centro_id).nome)}</span></div><div class="data-row"><span class="k">Prima accensione</span><span class="v">${formatData(c.data_avviamento)}</span></div></div>${semaforoHtml(c)}${scadenzeHtml(c)}</div>`).join('') : `<div class="card empty-state">Nessuna caldaia collegata a te per ora.</div>`);
-}
-draw();
+const i = currentInstaller();
+if (!i) { location.replace('login.html?next=installatore.html'); throw new Error('redirect'); }
+renderAuthBox(document.getElementById('authBox'));
+const esc = escHtml, db = getDb(), out = document.getElementById('out');
+const mie = Object.values(db.caldaie).filter(c => c.prima_accensione && c.prima_accensione.installatore && c.prima_accensione.installatore.piva === i.piva);
+out.innerHTML = `<div class="card"><h1>${esc(i.referente)}</h1><p class="lede" style="margin:0">${esc(i.ragione)}</p><p class="count-hint">I dati dell'installatore vengono presi in automatico quando un centro assistenza fa la prima accensione di una caldaia da lui installata.</p></div>` +
+  `<div class="card"><h2>Centri che puoi contattare</h2>` + (i.centri.map(id => { const c = getCentro(id); return `<div class="plan"><strong>${esc(c.nome)}</strong><div class="count-hint" style="margin:2px 0 8px">${esc(c.comune)}</div><div style="display:flex;gap:10px"><a class="btn btn-primary" style="flex:1" href="tel:${c.telefono}">Chiama</a><a class="btn btn-secondary" style="flex:1" href="mailto:${c.email}">Scrivi</a></div></div>`; }).join('') || '<p class="lede">Nessun centro.</p>') + `<p class="count-hint">Puoi contattare solo i centri che hanno fatto la prima accensione di tue installazioni.</p></div>` +
+  (mie.length ? mie.map(c => `<div><div class="card"><h2>${esc(c.tipo)} <span class="matricola">${esc(c.matricola)}</span></h2><div class="data-row"><span class="k">Centro</span><span class="v">${esc(getCentro(c.centro_id).nome)}</span></div><div class="data-row"><span class="k">Prima accensione</span><span class="v">${formatData(c.data_avviamento)}</span></div></div>${semaforoHtml(c)}${scadenzeHtml(c)}</div>`).join('') : `<div class="card empty-state">Nessuna caldaia collegata a te per ora.</div>`);
 </script>
 </body>
 </html>
