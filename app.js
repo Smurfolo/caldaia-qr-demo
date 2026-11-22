@@ -7,7 +7,7 @@
    to change, they only call these functions.
 ------------------------------------------------------------------ */
 
-const DB_KEY = 'caldaie_qr_demo_v6';
+const DB_KEY = 'caldaie_qr_demo_v8';
 
 const SEED = {
   centri: [
@@ -211,7 +211,7 @@ const ALBERI = {
     a2: { t: 'Attendi 10 minuti che si raffreddi e premi reset. Riparte?', si: 'ok', no: 'tec' } } }
 };
 function mutaCaldaia(m, fn) { const db = getDb(); if (db.caldaie[m]) { fn(db.caldaie[m]); saveDb(db); } }
-function aggiungiSegnalazione(m, s) { mutaCaldaia(m, c => { (c.segnalazioni = c.segnalazioni || []).push({ data: new Date().toISOString().slice(0, 10), ...s }); }); }
+function aggiungiSegnalazione(m, s) { mutaCaldaia(m, c => { (c.segnalazioni = c.segnalazioni || []).push({ id: 'g' + Date.now() + Math.floor(Math.random() * 1000), data: new Date().toISOString().slice(0, 10), ...s }); }); }
 function salvaPiani(centroId, piani) { const db = getDb(); db.centri.find(c => c.id === centroId).piani = piani; saveDb(db); }
 
 /* ---- v3: richieste avviamento, scadenze, matricole censite ---- */
@@ -291,13 +291,13 @@ function semaforoHtml(c) {
   const s = coperturaRicambi(c), lamp = (k) => `<span class="lamp ${k} ${s.cls === k ? 'on' : ''}"></span>`;
   return `<div class="card semaforo ${s.cls}"><div class="lamps">${lamp('bad')}${lamp('warn')}${lamp('ok')}</div><div><h2 style="margin-bottom:4px">${s.titolo}</h2><p class="lede" style="margin:0">${s.dettaglio}</p></div></div>`;
 }
-function scadenzeHtml(c) {
+function scadenzeHtml(c, centro) {
   const pm = prossimaManutenzione(c), sm = statoScadenza(pm); if (!sm) return '';
   const valide = (c.estensioni || []).filter(e => giorniA(e.fine) >= 0 && giorniA(e.inizio) <= 0); let avviso = '';
   if (valide.length && sm.giorni < 0) avviso = `<div class="alert bad"><strong>Estensione scaduta per manutenzione non effettuata.</strong> La manutenzione annuale è in ritardo: la copertura dell'estensione è decaduta e i ricambi non sono più gratuiti.</div>`;
   else if (valide.length && sm.giorni <= 60) avviso = `<div class="alert warn"><strong>Attenzione:</strong> se la manutenzione non viene eseguita entro il ${formatData(pm)}, l'estensione di garanzia scade e i ricambi non saranno più gratuiti.</div>`;
   const ext = (c.estensioni || []).map(e => { const s = statoScadenza(e.fine); return `<div class="data-row"><span class="k">${e.tipo === 'produttore' ? 'Estensione Baxi' : 'Estensione del centro'}</span><span class="v">${formatData(e.fine)}<br><span class="chip ${s.cls}">${s.testo}</span></span></div>`; }).join('');
-  return `<div class="card"><h2>Scadenze</h2><div class="data-row"><span class="k">Prossima manutenzione</span><span class="v">${formatData(pm)}<br><span class="chip ${sm.cls}">${sm.testo}</span></span></div>${ext}${avviso}</div>`;
+  return `<div class="card"><h2>Scadenze</h2><div class="data-row"><span class="k">Prossima manutenzione</span><span class="v">${formatData(pm)}<br><span class="chip ${sm.cls}">${sm.testo}</span></span></div>${ext}${avviso}${centro ? `<div class="count-hint" style="margin:14px 0 6px">Per prenotare la manutenzione:</div><div style="display:flex;gap:10px"><button class="btn btn-secondary" style="flex:1" data-act="scrivi-man">Scrivi</button><a class="btn btn-primary" style="flex:1" href="tel:${String(centro.telefono).replace(/\s/g, '')}">Chiama</a></div>` : ''}</div>`;
 }
 function richiediPiano(m, id, prefs) { mutaCaldaia(m, c => { c.richiesta_piano = { piano_id: id, data: isoOff(0), prefs: prefs || null }; }); }
 function aggiungiEstensione(m, e) { mutaCaldaia(m, c => { (c.estensioni = c.estensioni || []).push({ id: 'e' + Date.now(), ...e }); }); }
@@ -312,7 +312,7 @@ function upsertInstallatore(i, centroId) {
 }
 function completaPrimaAccensione(m, p) {
   registraPrimaAccensione(m, { nomeCliente: p.nomeCliente, posizione: p.posizione, tipo: p.tipo, dataInstallazione: p.dataInstallazione, dataAvviamento: p.dataAvviamento, centro_id: p.centro_id });
-  mutaCaldaia(m, c => { c.prima_accensione = { installatore: p.installatore, conformita: true, foto: p.foto || [], firma: p.firma, data: p.dataAvviamento, consenso: { privacy: true, marketing: !!p.marketing } }; });
+  mutaCaldaia(m, c => { c.prima_accensione = { installatore: p.installatore, conformita: true, foto: p.foto || [], firma: p.firma, data: p.dataAvviamento, consenso: { privacy: true, marketing: !!p.marketing } }; if (c.utente) c.utente.email = p.emailCliente; c.codice_prodotto = p.codiceProdotto; c.cliente_confermato = true; c.messaggi = c.messaggi || []; });
   upsertInstallatore(p.installatore, p.centro_id);
 }
 const BOZZE_KEY = 'caldaia_bozze_v1';
@@ -367,6 +367,7 @@ function cambioProprietario(m, p) {
     (c.proprietari = c.proprietari || []).push({ nome: vecchio, posizione: c.utente && c.utente.posizione, fino_al: p.data });
     c.utente = { nome: p.nome, posizione: p.posizione || (c.utente && c.utente.posizione), telefono: p.telefono, email: p.email };
     c.consenso_proprietario = { privacy: true, marketing: !!p.marketing, raccolto_da: p.operatore, data: p.data };
+    c.cliente_confermato = false;
     c.richiesta_piano = null; c.richieste_estensione = {};
     c.segnalazioni = (c.segnalazioni || []).map(s => ({ data: s.data, codice: s.codice, stato: s.stato }));
     if (!p.manteniContratti) { c.piano_attivo = null; (c.estensioni || []).forEach(e => { if (e.tipo === 'centro' && giorniA(e.fine) >= 0) e.fine = p.data; }); }
@@ -413,3 +414,40 @@ SEED.caldaie['CH-2023-0310'] = {
   garanzia: { attiva: false, scadenza: null }, estensioni: [], richieste_estensione: {}, stato: 'attiva', piano_attivo: null, richiesta_piano: null, segnalazioni: [],
   prima_accensione: { installatore: { ragione: 'Termo Installazioni Bianchi', referente: 'Paolo Bianchi', email: CONTATTO.mail, telefono: CONTATTO.tel, piva: '01234567890' }, conformita: true, foto: [], firma: null, data: isoOff(-300) }
 };
+
+/* ---- v8: caldaia Luna Century ---- */
+SEED.caldaie['CH-2022-0555'] = Object.assign(JSON.parse(JSON.stringify(SEED.caldaie['CH-2023-0310'])), {
+  matricola: 'CH-2022-0555', tipo: 'Baxi Luna Century 28 kW', utente: { nome: 'Giorgio Basso', posizione: 'Via Cavour 21, Bassano del Grappa (VI)' }
+});
+
+/* ---- v9: pubblicazione piani, conferma cliente, messaggi cliente con controllo richiedente, installatori del centro, codice prodotto ---- */
+SEED.centri.forEach(c => { c.piani_pubblicati = true; });
+const _cp = { 'CH-2024-0091': 'PRD-71001', 'AM-2022-0007': 'PRD-72001', 'CH-2021-0123': 'PRD-71002', 'CH-2023-0310': 'PRD-73001', 'CH-2022-0555': 'PRD-73002' };
+Object.values(SEED.caldaie).forEach(c => { c.cliente_confermato = c.matricola !== 'CH-2022-0555'; c.messaggi = c.messaggi || []; if (_cp[c.matricola]) c.codice_prodotto = _cp[c.matricola]; if (c.utente) c.utente.email = c.utente.email || CONTATTO.mail; });
+SEED.installatori.push({ id: 'i2', ragione: 'Idraulica Neri Srl', referente: 'Carlo Neri', email: CONTATTO.mail, telefono: CONTATTO.tel, piva: '09876543210', centri: ['centro-rossi', 'centro-verdi'] });
+SEED.installatori.push({ id: 'i3', ragione: 'Verdi Impianti', referente: 'Sara Verdi', email: CONTATTO.mail, telefono: CONTATTO.tel, piva: '05555555555', centri: ['centro-verdi'] });
+function nomeValido(n) { return String(n || '').trim().split(/\s+/).filter(Boolean).length >= 2; }
+function emailValida(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || '').trim()); }
+function verificaRichiedente(c, nome, email) { const n = x => String(x || '').trim().toLowerCase().replace(/\s+/g, ' '), u = c.utente || {}; return n(nome) === n(u.nome) && n(email) === n(u.email); }
+function inviaRichiesta(m, r) {
+  const c = getCaldaia(m), centro = getCentro(c.centro_id), diverso = !verificaRichiedente(c, r.nome, r.email);
+  const righe = [['intro', `Richiesta ricevuta dal portale per la caldaia ${m} (${c.tipo || '—'}).`], ['rich', `Richiedente: ${r.nome} <${r.email}>`]];
+  if (diverso) righe.push(['avviso', `AVVISO: la richiesta è stata fatta da una persona diversa dal proprietario registrato (${(c.utente || {}).nome || '—'}).`]);
+  if (r.codice) righe.push(['cod', `Codice errore: ${r.codice}`]);
+  if (r.telefono) righe.push(['tel', `Telefono: ${r.telefono}`]);
+  righe.push(['msg', `Messaggio: ${r.testo || '—'}`]);
+  mutaCaldaia(m, x => {
+    (x.messaggi = x.messaggi || []).push({ data: isoOff(0), tipo: r.tipo, nome: r.nome, email: r.email, diverso, oggetto: r.oggetto });
+    if (r.tipo === 'guasto') (x.segnalazioni = x.segnalazioni || []).push({ id: 'g' + Date.now() + Math.floor(Math.random() * 1000), data: isoOff(0), codice: r.codice, stato: 'inviata al centro', descrizione: r.testo, contatto: r.telefono, nome: r.nome, email: r.email, diverso });
+  });
+  logAudit(c.centro_id, r.tipo === 'guasto' ? 'Segnalazione guasto ricevuta' : 'Messaggio del cliente ricevuto', diverso ? 'Richiedente diverso dal proprietario' : '', m, 'Cliente');
+  return { a: centro.email, oggetto: r.oggetto, righe, diverso };
+}
+function aggiornaSegnalazione(m, i, stato) {
+  mutaCaldaia(m, c => { if (c.segnalazioni && c.segnalazioni[i]) c.segnalazioni[i].stato = stato; });
+  const c = getCaldaia(m); logAudit(c.centro_id, stato === 'in carico' ? 'Segnalazione presa in carico' : 'Segnalazione chiusa', (c.segnalazioni[i] || {}).codice || '', m);
+}
+function confermaCliente(m) { mutaCaldaia(m, c => { c.cliente_confermato = true; }); logAudit(getCaldaia(m).centro_id, 'Dati cliente confermati', '', m); }
+function pubblicaPiani(centroId, pub) { const db = getDb(); db.centri.find(c => c.id === centroId).piani_pubblicati = !!pub; saveDb(db); logAudit(centroId, pub ? 'Piani pubblicati' : 'Piani riaperti per modifiche'); }
+function installatoriDelCentro(cid) { return (getDb().installatori || []).filter(i => (i.centri || []).includes(cid)); }
+function aggiungiInstallatore(cid, i) { upsertInstallatore(i, cid); logAudit(cid, 'Installatore aggiunto', i.ragione); }

@@ -445,3 +445,9 @@ ol.steps-list { margin: 0 0 4px; padding-left: 20px; line-height: 1.7; font-size
 .video-ph { display: flex; gap: 12px; align-items: center; background: var(--panel-raised); border: 1px dashed var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; }
 .video-ph > span { width: 40px; height: 40px; border-radius: 50%; background: var(--flame); color: var(--on-flame); display: flex; align-items: center; justify-content: center; flex: none; }
 .video-ph small { color: var(--text-dim); }
+
+/* --- v9: email demo --- */
+.mailbox { background: var(--panel-raised); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-top: 12px; font-size: 13px; line-height: 1.5; }
+.mailbox hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+.mailbox p { margin: 6px 0 0; }
+.mail-warn { color: var(--warn); font-weight: 600; }

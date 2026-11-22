@@ -96,3 +96,11 @@ Per la demo il login è finto: un toggle "Utente finale / Tecnico" + una select 
 - I video sono **segnaposto** (VIDEO_01…06): per collegare i file reali basta sostituire il blocco `.video-ph` in `caldaia.js` con un `<video>` o un link.
 - I testi sono in italiano e in inglese; i codici e le descrizioni stanno in `alarmi.js`, le traduzioni in `i18n.js`.
 - Chiave localStorage `v6`: i dati demo precedenti vengono azzerati.
+
+## Novità v8–v9 / What's new in v8–v9
+
+- **Luna Century** (`alarmi.js`, demo `CH-2022-0555`): tabelle, messaggi e video propri del modello (105 codici). Il modello si riconosce da "Luna Classic" / "Luna Century" nel nome. Nei menu non c'è più nessun marker sui codici con procedura guidata.
+- **Area cliente:** centro assistenza + "Segnala un guasto" sopra il semaforo; scadenze sotto il semaforo con Scrivi / Chiama per prenotare la manutenzione. "Scrivi" e "Segnala un guasto" aprono una form (nome e cognome, email, richiesta; la matricola è nell'oggetto) e mostrano l'anteprima della mail: se il richiedente non coincide con il proprietario registrato la mail lo segnala. Richiesta di primo avviamento: email obbligatoria e avviso della mail di conferma.
+- **Area tecnico:** "Apri caldaia" con matricola + codice prodotto (controllo di corrispondenza). Dati installazione con email, codice prodotto e **conferma dati cliente**: finché non è confermato le altre operazioni sono bloccate (la prima accensione firmata e un cambio proprietario lo azzerano/impostano di conseguenza). Registro intervento con dati caldaia, ricambi e note. Rottamazione con "Marca e modello" (con esempio) e installatore scelto dalla lista. Prima accensione con codice prodotto, email cliente e scelta dell'installatore dalla lista del centro.
+- **Area master:** gestione segnalazioni guasto (prendi in carico / chiudi), lista installatori del centro (con aggiunta), pubblicazione dei piani con blocco ("Riapri per modifiche" per sbloccare), toggle prezzi dentro la scheda dei piani. Rimossa la sezione "Prezzi ed estensione del centro".
+- Chiave localStorage `v8`: i dati demo precedenti vengono azzerati. Nuove matricole demo: `CH-2023-0310` (Classic), `CH-2022-0555` (Century, dati cliente da confermare).

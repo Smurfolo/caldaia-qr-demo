@@ -17,11 +17,12 @@
   <div class="desk">
 <div id="reqs"></div>
   <div id="estreq"></div>
+  <div id="segn"></div>
   <div id="due"></div>
   <div id="stats"></div>
   <div id="main"></div>
   <div id="baxi"></div>
-  <div id="ext"></div>
+  <div id="inst"></div>
   <div id="team"></div>
   <div id="audit"></div>
   </div>
@@ -30,16 +31,16 @@
 <script>
 if (!currentStaff()) { location.replace('login.html?next=configuratore.html'); throw new Error('redirect'); }
 renderAuthBox(document.getElementById('authBox'));
-const who = { value: currentStaff().id }, main = document.getElementById('main'), team = document.getElementById('team'), reqs = document.getElementById('reqs'), ext = document.getElementById('ext'), estreq = document.getElementById('estreq'), stats = document.getElementById('stats'), baxi = document.getElementById('baxi'), audit = document.getElementById('audit'), due = document.getElementById('due');
+const who = { value: currentStaff().id }, main = document.getElementById('main'), team = document.getElementById('team'), reqs = document.getElementById('reqs'), inst = document.getElementById('inst'), segn = document.getElementById('segn'), estreq = document.getElementById('estreq'), stats = document.getElementById('stats'), baxi = document.getElementById('baxi'), audit = document.getElementById('audit'), due = document.getElementById('due');
 const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 let piani = [], centroId = null;
 
 function load() {
   const t = getDb().tecnici.find(x => x.id === who.value);
-  if (t.ruolo !== 'master') { team.innerHTML = reqs.innerHTML = due.innerHTML = ext.innerHTML = estreq.innerHTML = stats.innerHTML = baxi.innerHTML = audit.innerHTML = ''; main.innerHTML = '<div class="card empty-state">Il configuratore è riservato ai master del centro.</div>'; return; }
+  if (t.ruolo !== 'master') { team.innerHTML = reqs.innerHTML = due.innerHTML = inst.innerHTML = segn.innerHTML = estreq.innerHTML = stats.innerHTML = baxi.innerHTML = audit.innerHTML = ''; main.innerHTML = '<div class="card empty-state">Il configuratore è riservato ai master del centro.</div>'; return; }
   centroId = t.centro_id;
   piani = JSON.parse(JSON.stringify(getCentro(centroId).piani || []));
-  draw(); drawTeam(); drawReqs(); drawDue(); drawExt(); drawEstReq(); drawStats(); drawBaxi(); drawAudit();
+  draw(); drawTeam(); drawReqs(); drawDue(); drawSegn(); drawInst(); drawEstReq(); drawStats(); drawBaxi(); drawAudit();
 }
 function drawReqs() {
   const l = (getDb().richieste_avvio || []).filter(r => r.centro_id === centroId).reverse(), cls = { 'in attesa': 'warn', accettata: 'ok', completata: 'ok', rifiutata: 'warn' };
@@ -55,16 +56,10 @@ function drawDue() {
   due.innerHTML = `<div class="card"><h2>Scadenze nei prossimi 60 giorni</h2>` + (l.length ? l.map(r => `<div class="intervento"><span><a href="${BRANDS[r.c.marchio || 'baxi'].page}?id=${encodeURIComponent(r.c.matricola)}">${esc(r.c.matricola)}</a> — ${r.tipo}${r.c.utente ? '<br><small>' + esc(r.c.utente.nome) + '</small>' : ''}</span><span class="chip ${r.s.cls}">${r.s.testo}</span></div>`).join('') : `<div class="empty-state" style="padding:12px 0">Nessuna scadenza imminente.</div>`) + `</div>`;
 }
 reqs.addEventListener('click', e => { const b = e.target.closest('[data-rq]'); if (b) { aggiornaRichiesta(b.dataset.id, b.dataset.rq); drawReqs(); drawStats(); drawAudit(); } });
-function drawExt() {
-  const e = getCentro(centroId).estensione || {};
-  ext.innerHTML = `<div class="card"><h2>Prezzi ed estensione del centro</h2><div class="svc-grid"><label><input type="checkbox" id="prezziToggle" ${getCentro(centroId).mostra_prezzi !== false ? 'checked' : ''}><span>Mostra i prezzi ai clienti (piani ed estensioni). Se disattivato il cliente vede "su richiesta".</span></label></div><h3>Estensione del centro</h3><p class="count-hint" style="margin-top:0">Contratto offerto agli utenti, garantito dal centro anche fuori garanzia del produttore.</p><label>Nome</label><input type="text" id="extNome" value="${esc(e.nome)}"><div class="field-row"><div><label>Durata (mesi)</label><input type="text" id="extMesi" value="${e.mesi || ''}"></div><div><label>Prezzo €</label><input type="text" id="extPrezzo" value="${e.prezzo || ''}"></div></div><button class="btn btn-primary btn-block" id="extSave" style="margin-top:12px">Salva</button><div class="count-hint" id="extMsg"></div></div>`;
-}
-ext.addEventListener('change', e => { if (e.target.id !== 'prezziToggle') return; const d = getDb(); d.centri.find(c => c.id === centroId).mostra_prezzi = e.target.checked; saveDb(d); logAudit(centroId, e.target.checked ? 'Prezzi mostrati ai clienti' : 'Prezzi nascosti ai clienti ("su richiesta")'); drawAudit(); });
-ext.addEventListener('click', e => { if (e.target.id !== 'extSave') return; const d = getDb(); d.centri.find(c => c.id === centroId).estensione = { nome: document.getElementById('extNome').value.trim() || 'Estensione del centro', mesi: parseInt(document.getElementById('extMesi').value, 10) || 24, prezzo: parseInt(document.getElementById('extPrezzo').value, 10) || null }; saveDb(d); logAudit(centroId, 'Estensione del centro aggiornata'); drawAudit(); document.getElementById('extMsg').textContent = 'Salvato.'; });
 let pendingBaxi = null;
 function drawBaxi() {
   baxi.innerHTML = `<div class="card"><h2>Baxi consiglia</h2><p class="count-hint" style="margin-top:0">Proposte pensate da Baxi. Aggiungendole copi solo i parametri predefiniti (servizi, orari, urgenze, ricambi): il prezzo lo imposti tu e puoi modificarle liberamente.</p>` +
-    BAXI_CONSIGLIA.map((b, i) => `<div class="plan"><strong>${esc(b.nome)}</strong><div class="count-hint" style="margin:2px 0 6px">${esc(b.descr)}</div><ul>${descrPiano(b).map(x => `<li>${x}</li>`).join('')}</ul><button class="btn btn-secondary btn-block" data-bx="${i}">Aggiungi alle mie proposte</button></div>`).join('') +
+    BAXI_CONSIGLIA.map((b, i) => `<div class="plan"><strong>${esc(b.nome)}</strong><div class="count-hint" style="margin:2px 0 6px">${esc(b.descr)}</div><ul>${descrPiano(b).map(x => `<li>${x}</li>`).join('')}</ul>${getCentro(centroId).piani_pubblicati ? '<div class="count-hint">Riapri i piani per aggiungere proposte.</div>' : `<button class="btn btn-secondary btn-block" data-bx="${i}">Aggiungi alle mie proposte</button>`}</div>`).join('') +
     (pendingBaxi ? `<div class="alert warn"><strong>Hai già 3 proposte.</strong> Quale vuoi sostituire con "${esc(pendingBaxi.nome)}"?<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${piani.map((p, k) => `<button class="btn btn-secondary" data-bxrep="${k}">Proposta ${k + 1}: ${esc(p.nome)}</button>`).join('')}<button class="btn btn-secondary" data-bxrep="no">Annulla</button></div></div>` : '') + `<div class="count-hint" id="bxMsg"></div></div>`;
 }
 baxi.addEventListener('click', e => {
@@ -100,13 +95,37 @@ function drawAudit() {
   const l = (getDb().audit || []).filter(a => a.centro_id === centroId).slice(-40).reverse();
   audit.innerHTML = `<div class="card"><h2>Storico modifiche</h2><p class="count-hint" style="margin-top:0">Visibile solo ai master.</p>` + (l.length ? l.map(a => `<div class="intervento"><span><strong>${esc(a.azione)}</strong>${a.dettaglio ? '<br><small>' + esc(a.dettaglio) + '</small>' : ''}${a.matricola ? '<br><small>' + esc(a.matricola) + '</small>' : ''}<br><small>${esc(a.chi)}</small></span><span class="data">${new Date(a.t).toLocaleString(window.LANG === 'en' ? 'en-GB' : 'it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span></div>`).join('') : `<div class="empty-state" style="padding:12px 0">Nessuna modifica registrata.</div>`) + `</div>`;
 }
+function drawSegn() {
+  const rows = [];
+  Object.values(getDb().caldaie).filter(c => c.centro_id === centroId).forEach(c => (c.segnalazioni || []).forEach((g, i) => { if (g.stato !== 'risolta autonomamente') rows.push({ c, g, i }); }));
+  rows.sort((a, b) => (b.g.data || '').localeCompare(a.g.data || ''));
+  const cls = { 'inviata al centro': 'warn', 'in carico': 'warn', 'chiusa': 'ok' };
+  segn.innerHTML = `<div class="card"><h2>Segnalazioni guasto</h2>` + (rows.length ? rows.map(({ c, g, i }) => `<div class="plan"><div class="data-row"><span><a href="${BRANDS[c.marchio || 'baxi'].page}?id=${encodeURIComponent(c.matricola)}">${esc(c.matricola)}</a> — ${esc(g.codice || '—')}</span><span class="chip ${cls[g.stato] || 'warn'}">${esc(g.stato)}</span></div><div class="count-hint" style="margin:0 0 8px">${formatData(g.data)}${g.descrizione ? '<br>' + esc(g.descrizione) : ''}${g.nome ? '<br>' + esc(g.nome) + ' · ' + esc(g.email || '') : ''}${g.contatto ? '<br>Tel. ' + esc(g.contatto) : ''}${g.diverso ? '<br><span class="mail-warn">Richiedente diverso dal proprietario</span>' : ''}</div>` + (g.stato === 'inviata al centro' ? `<button class="btn btn-primary btn-block" data-sg="in carico" data-m="${esc(c.matricola)}" data-ix="${i}">Prendi in carico</button>` : g.stato === 'in carico' ? `<button class="btn btn-secondary btn-block" data-sg="chiusa" data-m="${esc(c.matricola)}" data-ix="${i}">Chiudi segnalazione</button>` : '') + `</div>`).join('') : `<div class="empty-state" style="padding:12px 0">Nessuna segnalazione.</div>`) + `</div>`;
+}
+segn.addEventListener('click', e => { const b = e.target.closest('[data-sg]'); if (!b) return; aggiornaSegnalazione(b.dataset.m, +b.dataset.ix, b.dataset.sg); drawSegn(); drawStats(); drawAudit(); });
+function drawInst() {
+  const l = installatoriDelCentro(centroId);
+  inst.innerHTML = `<div class="card"><h2>I tuoi installatori</h2>` + (l.length ? l.map(i => `<div class="data-row"><span>${esc(i.ragione)}<br><small>${esc(i.referente)} · ${esc(i.telefono)}</small></span><span class="v">${esc(i.piva)}</span></div>`).join('') : '<p class="count-hint">Nessun installatore.</p>') +
+    `<h3>Aggiungi un installatore</h3><label for="nsRag">Ragione sociale</label><input type="text" id="nsRag"><div class="field-row"><div><label for="nsRef">Referente</label><input type="text" id="nsRef"></div><div><label for="nsPiva">Partita IVA</label><input type="text" id="nsPiva"></div></div><div class="field-row"><div><label for="nsTel">Telefono</label><input type="text" id="nsTel"></div><div><label for="nsMail">Email</label><input type="text" id="nsMail"></div></div><button class="btn btn-secondary btn-block" id="addInst" style="margin-top:12px">Aggiungi installatore</button><div class="count-hint">Potrai sceglierlo nella prima accensione e nella rottamazione.</div></div>`;
+}
+inst.addEventListener('click', e => {
+  if (e.target.id !== 'addInst') return; const g = id => document.getElementById(id).value.trim();
+  if (!g('nsRag') || !g('nsRef') || !g('nsPiva') || !g('nsTel')) { alert('Compila ragione sociale, referente, partita IVA e telefono.'); return; }
+  aggiungiInstallatore(centroId, { ragione: g('nsRag'), referente: g('nsRef'), piva: g('nsPiva'), telefono: g('nsTel'), email: g('nsMail') }); drawInst(); drawAudit();
+});
 function drawTeam() {
   const d = getDb(), me = who.value, mem = d.tecnici.filter(t => t.centro_id === centroId);
   team.innerHTML = `<div class="card"><h2>Team del centro</h2>` + mem.map(t => `<div class="data-row" style="align-items:center"><span>${t.nome}${t.id === me ? ' (tu)' : ''}</span><span style="display:flex;gap:6px"><select data-role="${t.id}" style="width:auto" ${t.id === me ? 'disabled' : ''}><option ${t.ruolo === 'tecnico' ? 'selected' : ''}>tecnico</option><option ${t.ruolo === 'master' ? 'selected' : ''}>master</option></select><button class="btn btn-secondary" data-rm="${t.id}" ${t.id === me ? 'disabled' : ''}>Rimuovi</button></span></div>`).join('') +
     `<label>Nuovo membro</label><div class="field-row"><div><input type="text" id="newName" placeholder="Nome e cognome"></div><div><select id="newRole"><option>tecnico</option><option>master</option></select></div></div><button class="btn btn-primary btn-block" id="addTech" style="margin-top:12px">Aggiungi al team</button><div class="count-hint">Non puoi modificare o rimuovere te stesso.</div></div>`;
 }
 function draw() {
-  main.innerHTML = `<div class="card"><h1>Piani di manutenzione</h1><p class="lede" style="margin:0">${getCentro(centroId).nome} — fino a 3 configurazioni, visibili agli utenti senza piano.</p></div>` +
+  const cen = getCentro(centroId), pub = cen.piani_pubblicati === true;
+  const head = `<div class="card"><h1>Piani di manutenzione</h1><p class="lede" style="margin:0">${cen.nome} — fino a 3 configurazioni, visibili agli utenti senza piano.</p><p style="margin:10px 0 0">${pub ? '<span class="chip ok">Pubblicati e bloccati</span>' : '<span class="chip warn">Bozza: non visibile ai clienti</span>'}</p></div>`;
+  if (pub) {
+    main.innerHTML = head + piani.map(p => `<div class="card"><h2>${esc(p.nome)}</h2><p class="count-hint" style="margin-top:0">${cen.mostra_prezzi === false ? 'Prezzo nascosto ai clienti (su richiesta)' : (p.prezzo ? '€ ' + p.prezzo + '/anno' : 'Prezzo su richiesta')}</p><ul class="plain">${descrPiano(p).map(x => `<li>${x}</li>`).join('')}${p.servizi.map(x => `<li>${x}</li>`).join('')}</ul></div>`).join('') + '<button class="btn btn-secondary btn-block" id="unpub">Riapri per modifiche</button><div class="count-hint" id="msg"></div>';
+    return;
+  }
+  main.innerHTML = head +
     piani.map((p, i) => `<div class="card" data-i="${i}"><label>Nome piano</label><input type="text" data-f="nome" value="${p.nome}">
       <label>Servizi inclusi</label><div class="svc-grid">${SERVIZI.map(s => `<label><input type="checkbox" data-f="srv" value="${s}" ${p.servizi.includes(s) ? 'checked' : ''}>${s}</label>`).join('')}</div>
       <label>Manutenzione ordinaria</label><select data-f="man"><option value="ufficio" ${p.man !== 'libera' ? 'selected' : ''}>In orari d'ufficio</option><option value="libera" ${p.man === 'libera' ? 'selected' : ''}>All'orario scelto dal cliente</option></select>
@@ -116,7 +135,8 @@ function draw() {
       <label>Prezzo €/anno (vuoto = su richiesta)</label><input type="text" data-f="prezzo" value="${p.prezzo || ''}">
       <button class="btn btn-secondary btn-block" data-del="${i}" style="margin-top:14px">Elimina</button></div>`).join('') +
     (piani.length < 3 ? '<button class="btn btn-secondary btn-block" id="add">+ Aggiungi configurazione</button>' : '') +
-    '<button class="btn btn-primary btn-block" id="save" style="margin-top:10px">Salva</button><div class="count-hint" id="msg"></div>';
+    `<div class="card"><div class="svc-grid"><label><input type="checkbox" id="prezziToggle" ${cen.mostra_prezzi !== false ? 'checked' : ''}><span>Mostra i prezzi ai clienti (piani ed estensioni). Se disattivato il cliente vede "su richiesta".</span></label></div></div>` +
+    '<button class="btn btn-secondary btn-block" id="save" style="margin-top:10px">Salva bozza</button><button class="btn btn-primary btn-block" id="pub" style="margin-top:10px">Pubblica piani</button><div class="count-hint" id="msg"></div>';
 }
 main.addEventListener('input', e => {
   const c = e.target.closest('[data-i]'); if (!c) return; const p = piani[c.dataset.i], f = e.target.dataset.f;
@@ -125,11 +145,21 @@ main.addEventListener('input', e => {
   else if (f === 'dom' || f === 'ricambi') p[f] = e.target.value === 'si';
   else if (f) p[f] = e.target.value;
 });
+main.addEventListener('change', e => { if (e.target.id !== 'prezziToggle') return; const d = getDb(); d.centri.find(c => c.id === centroId).mostra_prezzi = e.target.checked; saveDb(d); logAudit(centroId, e.target.checked ? 'Prezzi mostrati ai clienti' : 'Prezzi nascosti ai clienti ("su richiesta")'); drawAudit(); });
 main.addEventListener('click', e => {
   const t = e.target;
   if (t.dataset.del !== undefined) { piani.splice(t.dataset.del, 1); draw(); }
   else if (t.id === 'add') { piani.push({ id: 'p' + Date.now(), nome: 'Nuovo piano', servizi: [SERVIZI[0]], man: 'ufficio', urg: '48h', dom: false, ricambi: false, prezzo: null }); draw(); }
-  else if (t.id === 'save') { salvaPiani(centroId, piani); drawAudit(); document.getElementById('msg').textContent = 'Salvato. Gli utenti vedono ora queste offerte.'; }
+  else if (t.id === 'pub') {
+    if (!piani.length) { alert('Aggiungi almeno un piano prima di pubblicare.'); return; }
+    if (!confirm('Dopo la pubblicazione i piani sono visibili ai clienti e bloccati: per modificarli dovrai riaprirli. Pubblicare?')) return;
+    salvaPiani(centroId, piani); pubblicaPiani(centroId, true); draw(); drawBaxi(); drawAudit();
+  }
+  else if (t.id === 'unpub') {
+    if (!confirm('Riaprendo i piani i clienti non li vedranno finché non li pubblichi di nuovo. Continuare?')) return;
+    pubblicaPiani(centroId, false); draw(); drawBaxi(); drawAudit();
+  }
+  else if (t.id === 'save') { salvaPiani(centroId, piani); drawAudit(); document.getElementById('msg').textContent = 'Bozza salvata. Per renderla visibile ai clienti, pubblica i piani.'; }
 });
 function mutaTeam(fn, az) { const d = getDb(); fn(d); saveDb(d); drawTeam(); logAudit(centroId, az || 'Team aggiornato'); drawAudit(); }
 team.addEventListener('change', e => { const id = e.target.dataset.role; if (id) mutaTeam(d => { d.tecnici.find(t => t.id === id).ruolo = e.target.value; }, 'Ruolo modificato'); });
