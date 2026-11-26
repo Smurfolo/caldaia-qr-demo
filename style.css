@@ -451,3 +451,7 @@ ol.steps-list { margin: 0 0 4px; padding-left: 20px; line-height: 1.7; font-size
 .mailbox hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
 .mailbox p { margin: 6px 0 0; }
 .mail-warn { color: var(--warn); font-weight: 600; }
+
+/* --- v10: richieste da installatori, Luna Team --- */
+.plan.hl { border: 2px solid var(--flame); background: rgba(0, 87, 168, 0.08); }
+.points { font-size: 34px; font-weight: 700; color: var(--flame); margin: 4px 0 8px; }

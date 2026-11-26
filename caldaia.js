@@ -258,7 +258,7 @@ function primaAccensioneForm(centro, centroLoggato) {
     <label for="fMail">Email cliente *</label><input type="text" id="fMail" value="${esc(rqA.email)}"><div class="count-hint">Qui verrà inviato il certificato di prima accensione.</div>
     <h3>Impianto</h3>
     <label for="fTipo">Modello caldaia</label><input type="text" id="fTipo" placeholder="es. Baxi Luna Duo-Tec 28 kW" value="${esc(c0.tipo)}">
-    <label for="fCodP">Codice prodotto</label><input type="text" id="fCodP" value="${esc(getParam('cp') || c0.codice_prodotto)}">
+    <label for="fCodP">Codice prodotto</label><input type="text" id="fCodP" value="${esc(getParam('cp') || c0.codice_prodotto || rqA.codice_prodotto)}">
     <div class="field-row"><div><label for="fInstall">Data installazione</label><input type="date" id="fInstall"></div><div><label for="fAvvio">Data avviamento</label><input type="date" id="fAvvio"></div></div>
     <h3>Installatore</h3>
     <label for="iSel">Scegli dalla tua lista</label><select id="iSel"><option value="">— Nuovo installatore —</option>${installatoriDelCentro(centroLoggato).map(i => `<option value="${i.id}">${esc(i.referente)} — ${esc(i.ragione)}</option>`).join('')}</select>

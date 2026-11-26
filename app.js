@@ -7,7 +7,7 @@
    to change, they only call these functions.
 ------------------------------------------------------------------ */
 
-const DB_KEY = 'caldaie_qr_demo_v8';
+const DB_KEY = 'caldaie_qr_demo_v9';
 
 const SEED = {
   centri: [
@@ -314,6 +314,7 @@ function completaPrimaAccensione(m, p) {
   registraPrimaAccensione(m, { nomeCliente: p.nomeCliente, posizione: p.posizione, tipo: p.tipo, dataInstallazione: p.dataInstallazione, dataAvviamento: p.dataAvviamento, centro_id: p.centro_id });
   mutaCaldaia(m, c => { c.prima_accensione = { installatore: p.installatore, conformita: true, foto: p.foto || [], firma: p.firma, data: p.dataAvviamento, consenso: { privacy: true, marketing: !!p.marketing } }; if (c.utente) c.utente.email = p.emailCliente; c.codice_prodotto = p.codiceProdotto; c.cliente_confermato = true; c.messaggi = c.messaggi || []; });
   upsertInstallatore(p.installatore, p.centro_id);
+  accreditaPunti(p.installatore.piva, 50, 'Prima accensione ' + m);
 }
 const BOZZE_KEY = 'caldaia_bozze_v1';
 function getBozze() { try { return JSON.parse(localStorage.getItem(BOZZE_KEY) || '[]'); } catch (e) { return []; } }
@@ -383,7 +384,7 @@ _w('salvaPiani', cid => logAudit(cid, 'Piani di manutenzione aggiornati'));
 _w('richiediPiano', (m, id) => logAudit(getCaldaia(m).centro_id, 'Richiesta piano di manutenzione', 'Piano ' + id, m, 'Cliente'));
 _w('richiediEstensione', (m, t) => logAudit(getCaldaia(m).centro_id, 'Richiesta contratto di estensione', t === 'produttore' ? 'Produttore (Baxi)' : 'Centro assistenza', m, 'Cliente'));
 _w('preApprovaEstensione', (m, t) => logAudit(getCaldaia(m).centro_id, 'Estensione pre-approvata', t === 'produttore' ? 'Produttore (Baxi)' : 'Centro assistenza', m));
-_w('creaRichiestaAvvio', r => logAudit(r.centro_id, 'Nuova richiesta di avviamento', r.nome, r.matricola, 'Cliente'));
+_w('creaRichiestaAvvio', r => logAudit(r.centro_id, 'Nuova richiesta di avviamento', r.nome, r.matricola, r.da_installatore ? r.da_installatore.referente + ' (installatore)' : 'Cliente'));
 
 /* ---- v6: sessione (login finto), aree separate ---- */
 const SESSION_KEY = 'caldaia_session';
@@ -451,3 +452,13 @@ function confermaCliente(m) { mutaCaldaia(m, c => { c.cliente_confermato = true;
 function pubblicaPiani(centroId, pub) { const db = getDb(); db.centri.find(c => c.id === centroId).piani_pubblicati = !!pub; saveDb(db); logAudit(centroId, pub ? 'Piani pubblicati' : 'Piani riaperti per modifiche'); }
 function installatoriDelCentro(cid) { return (getDb().installatori || []).filter(i => (i.centri || []).includes(cid)); }
 function aggiungiInstallatore(cid, i) { upsertInstallatore(i, cid); logAudit(cid, 'Installatore aggiunto', i.ragione); }
+
+/* ---- v10: Luna Team (punti dimostrativi) e richieste inviate dagli installatori ---- */
+SEED.installatori.forEach(x => { x.punti = { totale: 0, anno: 0, movimenti: [] }; });
+Object.assign(SEED.installatori.find(x => x.id === 'i1'), { punti: { totale: 1250, anno: 480, movimenti: [
+  { data: isoOff(-12), testo: 'Prima accensione CH-2021-0123', punti: 50 }, { data: isoOff(-40), testo: 'Bonus formazione', punti: 100 }, { data: isoOff(-75), testo: 'Prima accensione CH-2023-0310', punti: 50 }] } });
+Object.assign(SEED.installatori.find(x => x.id === 'i2'), { punti: { totale: 640, anno: 90, movimenti: [{ data: isoOff(-30), testo: 'Bonus formazione', punti: 90 }] } });
+function accreditaPunti(piva, n, testo) {
+  const db = getDb(), x = (db.installatori || []).find(y => y.piva === piva); if (!x) return;
+  x.punti = x.punti || { totale: 0, anno: 0, movimenti: [] }; x.punti.totale += n; x.punti.anno += n; x.punti.movimenti.unshift({ data: isoOff(0), testo, punti: n }); saveDb(db);
+}

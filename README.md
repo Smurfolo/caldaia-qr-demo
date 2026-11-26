@@ -19,11 +19,7 @@ Demo statica, nessun backend: tutti i dati vivono in `localStorage`, seedati al 
 
 ## QR code reali
 
-Ogni QR dovrebbe incapsulare l'URL completo, non solo la matricola:
-
-```
-https://<utente>.github.io/<repo>/caldaia.html?id=CH-2024-0091
-```
+Ogni QR dovrebbe incapsulare l'URL completo, non solo la matricola
 
 Così basta inquadrarlo con la fotocamera di qualsiasi telefono (senza passare dalla pagina scanner) per arrivare direttamente alla scheda. La pagina scanner (`index.html`) serve soprattutto in fase di test/demo o per un uso interno da centralino.
 
@@ -104,3 +100,11 @@ Per la demo il login è finto: un toggle "Utente finale / Tecnico" + una select 
 - **Area tecnico:** "Apri caldaia" con matricola + codice prodotto (controllo di corrispondenza). Dati installazione con email, codice prodotto e **conferma dati cliente**: finché non è confermato le altre operazioni sono bloccate (la prima accensione firmata e un cambio proprietario lo azzerano/impostano di conseguenza). Registro intervento con dati caldaia, ricambi e note. Rottamazione con "Marca e modello" (con esempio) e installatore scelto dalla lista. Prima accensione con codice prodotto, email cliente e scelta dell'installatore dalla lista del centro.
 - **Area master:** gestione segnalazioni guasto (prendi in carico / chiudi), lista installatori del centro (con aggiunta), pubblicazione dei piani con blocco ("Riapri per modifiche" per sbloccare), toggle prezzi dentro la scheda dei piani. Rimossa la sezione "Prezzi ed estensione del centro".
 - Chiave localStorage `v8`: i dati demo precedenti vengono azzerati. Nuove matricole demo: `CH-2023-0310` (Classic), `CH-2022-0555` (Century, dati cliente da confermare).
+
+## Novità v10 / What's new in v10 — area installatore
+
+- **Nuova richiesta di primo avviamento** dall'installatore, per conto del cliente finale: sceglie uno dei suoi centri collegati, inserisce matricola (e codice prodotto, facoltativo), dati del cliente e conferma il consenso del cliente. Controlli: matricola riconosciuta, caldaia non già collegata né rottamata, nessuna richiesta aperta, codice prodotto coerente. Il cliente, aprendo la scheda, vede lo stato della richiesta come per quelle fatte da lui.
+- **Area master:** le richieste inviate dagli installatori compaiono in cima, evidenziate e con l'indicazione dell'installatore; in alto un contatore delle richieste da installatori in attesa. Anche lo storico modifiche riporta chi le ha inviate.
+- **Pagina installatore:** tolti semafori e scadenze; restano le installazioni (modello, matricola, da quale centro è stata accesa e quando) e i centri contattabili.
+- **Luna Team:** punti, livello (Bronzo / Argento / Oro / Platino), progresso verso il livello successivo, ultimi movimenti e collegamento a https://www.lunateam.it. I punti sono **dimostrativi**: i valori iniziali sono finti e ogni prima accensione fatta da un centro aggiunge 50 punti all'installatore per far vedere l'effetto. I punti reali dovranno arrivare dal programma fedeltà (soglie dei livelli in `installatore.html`, `LIV`).
+- Chiave localStorage `v9`: i dati demo precedenti vengono azzerati.

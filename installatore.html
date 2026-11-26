@@ -18,14 +18,53 @@
 </div>
 <script src="app.js"></script>
 <script>
-const i = currentInstaller();
-if (!i) { location.replace('login.html?next=installatore.html'); throw new Error('redirect'); }
+const me = currentInstaller();
+if (!me) { location.replace('login.html?next=installatore.html'); throw new Error('redirect'); }
 renderAuthBox(document.getElementById('authBox'));
-const esc = escHtml, db = getDb(), out = document.getElementById('out');
-const mie = Object.values(db.caldaie).filter(c => c.prima_accensione && c.prima_accensione.installatore && c.prima_accensione.installatore.piva === i.piva);
-out.innerHTML = `<div class="card"><h1>${esc(i.referente)}</h1><p class="lede" style="margin:0">${esc(i.ragione)}</p><p class="count-hint">I dati dell'installatore vengono presi in automatico quando un centro assistenza fa la prima accensione di una caldaia da lui installata.</p></div>` +
-  `<div class="card"><h2>Centri che puoi contattare</h2>` + (i.centri.map(id => { const c = getCentro(id); return `<div class="plan"><strong>${esc(c.nome)}</strong><div class="count-hint" style="margin:2px 0 8px">${esc(c.comune)}</div><div style="display:flex;gap:10px"><a class="btn btn-primary" style="flex:1" href="tel:${c.telefono}">Chiama</a><a class="btn btn-secondary" style="flex:1" href="mailto:${c.email}">Scrivi</a></div></div>`; }).join('') || '<p class="lede">Nessun centro.</p>') + `<p class="count-hint">Puoi contattare solo i centri che hanno fatto la prima accensione di tue installazioni.</p></div>` +
-  (mie.length ? mie.map(c => `<div><div class="card"><h2>${esc(c.tipo)} <span class="matricola">${esc(c.matricola)}</span></h2><div class="data-row"><span class="k">Centro</span><span class="v">${esc(getCentro(c.centro_id).nome)}</span></div><div class="data-row"><span class="k">Prima accensione</span><span class="v">${formatData(c.data_avviamento)}</span></div></div>${semaforoHtml(c)}${scadenzeHtml(c)}</div>`).join('') : `<div class="card empty-state">Nessuna caldaia collegata a te per ora.</div>`);
+const esc = escHtml, out = document.getElementById('out');
+const LIV = [['Bronzo', 0], ['Argento', 1000], ['Oro', 1500], ['Platino', 2500]];
+
+function draw() {
+  const db = getDb(), i = db.installatori.find(x => x.id === me.id) || me;
+  const mie = Object.values(db.caldaie).filter(c => c.prima_accensione && c.prima_accensione.installatore && c.prima_accensione.installatore.piva === i.piva).sort((a, b) => (b.data_avviamento || '').localeCompare(a.data_avviamento || ''));
+  const pt = i.punti || { totale: 0, anno: 0, movimenti: [] };
+  let k = 0; LIV.forEach((l, n) => { if (pt.totale >= l[1]) k = n; });
+  const next = LIV[k + 1], perc = next ? Math.round((pt.totale - LIV[k][1]) / (next[1] - LIV[k][1]) * 100) : 100;
+  out.innerHTML =
+    `<div class="card"><h1>${esc(i.referente)}</h1><p class="lede" style="margin:0">${esc(i.ragione)}</p><p class="count-hint">I dati dell'installatore vengono presi in automatico quando un centro assistenza fa la prima accensione di una caldaia da lui installata.</p></div>` +
+    `<div class="card"><h2>Luna Team</h2><p class="count-hint" style="margin:0">I tuoi punti</p><div class="points">${pt.totale} punti</div><span class="chip ok">Livello ${LIV[k][0]}</span>` +
+      `<div class="bar" style="margin:12px 0 6px"><i style="width:${perc}%"></i></div><div class="count-hint" style="margin:0 0 4px">${next ? `Mancano ${next[1] - pt.totale} punti al livello ${next[0]}` : 'Livello massimo raggiunto'}</div><div class="count-hint" style="margin:0">${pt.anno} punti quest'anno</div>` +
+      `<h3>Ultimi movimenti</h3>` + (pt.movimenti.slice(0, 4).map(m => `<div class="intervento"><span>${esc(m.testo)}</span><span class="data">${formatData(m.data)} · +${m.punti} punti</span></div>`).join('') || '<p class="count-hint" style="margin:0">—</p>') +
+      `<p class="count-hint">Punti dimostrativi: i dati reali arriveranno dal programma fedeltà.</p><a class="btn btn-primary btn-block" href="https://www.lunateam.it" target="_blank" rel="noopener">Vai a Luna Team</a></div>` +
+    `<div class="card"><h2>Nuova richiesta di primo avviamento</h2><p class="lede">Invia una richiesta per conto del cliente finale a uno dei tuoi centri assistenza collegati.</p>` +
+      `<label for="rqCentro">Centro assistenza</label><select id="rqCentro"><option value="">— Scegli il centro —</option>${i.centri.map(id => { const c = getCentro(id); return `<option value="${c.id}">${esc(c.nome)} — ${esc(c.comune)}</option>`; }).join('')}</select>` +
+      `<label for="rqMat">Matricola caldaia</label><input type="text" id="rqMat" placeholder="es. CH-2023-0044"><label for="rqCp">Codice prodotto</label><input type="text" id="rqCp" placeholder="es. PRD-71001">` +
+      `<h3>Dati del cliente</h3><label for="rqNome">Nome e cognome *</label><input type="text" id="rqNome"><div class="field-row"><div><label for="rqTel">Telefono *</label><input type="text" id="rqTel"></div><div><label for="rqMail">Email *</label><input type="text" id="rqMail"></div></div>` +
+      `<label for="rqInd">Indirizzo dell'impianto</label><input type="text" id="rqInd"><label for="rqNote">Note</label><input type="text" id="rqNote">` +
+      `<div class="svc-grid" style="margin-top:14px"><label><input type="checkbox" id="rqPriv"><span>Il cliente ha letto l'<a href="#">informativa privacy</a> e acconsente al trattamento dei dati *</span></label><label><input type="checkbox" id="rqMkt"><span>Comunicazioni commerciali (facoltativo)</span></label></div>` +
+      `<p class="count-hint">Il cliente riceverà una email di conferma all'indirizzo inserito.</p><button class="btn btn-primary btn-block" id="rqSend">Invia richiesta</button><div class="count-hint" id="rqMsg"></div></div>` +
+    `<div class="card"><h2>Centri che puoi contattare</h2>` + (i.centri.map(id => { const c = getCentro(id); return `<div class="plan"><strong>${esc(c.nome)}</strong><div class="count-hint" style="margin:2px 0 8px">${esc(c.comune)}</div><div style="display:flex;gap:10px"><a class="btn btn-primary" style="flex:1" href="tel:${c.telefono}">Chiama</a><a class="btn btn-secondary" style="flex:1" href="mailto:${c.email}">Scrivi</a></div></div>`; }).join('') || '<p class="lede">Nessun centro.</p>') + `<p class="count-hint">Puoi contattare solo i centri che hanno fatto la prima accensione di tue installazioni.</p></div>` +
+    `<div class="card"><h2>Le tue installazioni</h2>` + (mie.length ? mie.map(c => `<div class="intervento"><span><strong>${esc(c.tipo)}</strong> <span class="matricola">${esc(c.matricola)}</span><br><small>Accesa da ${esc(getCentro(c.centro_id).nome)}</small></span><span class="data">${formatData(c.data_avviamento)}</span></div>`).join('') : `<div class="empty-state" style="padding:12px 0">Nessuna caldaia collegata a te per ora.</div>`) + `</div>`;
+}
+out.addEventListener('click', e => {
+  if (e.target.id !== 'rqSend') return;
+  const g = id => document.getElementById(id).value.trim(), msg = document.getElementById('rqMsg');
+  const err = t => { msg.style.color = 'var(--warn)'; msg.textContent = t; };
+  const m = g('rqMat').toUpperCase(), cp = g('rqCp').toUpperCase(), cid = g('rqCentro');
+  if (!cid) return err('Scegli un centro assistenza.');
+  if (!m || !g('rqNome') || !g('rqTel')) return err('Compila matricola, nome e cognome e telefono del cliente.');
+  if (!emailValida(g('rqMail'))) return err('Inserisci un indirizzo email valido.');
+  if (!document.getElementById('rqPriv').checked) return err('Serve il consenso del cliente al trattamento dei dati.');
+  const c = getCaldaia(m);
+  if (!c) return err('La matricola non è stata riconosciuta.');
+  if (c.centro_id || c.stato === 'rottamata') return err('Questa caldaia risulta già collegata a un centro o rottamata.');
+  if (cp && c.codice_prodotto && c.codice_prodotto.toUpperCase() !== cp) return err('Il codice prodotto non corrisponde alla matricola.');
+  const ex = richiestaPerMatricola(m); if (ex && (ex.stato === 'in attesa' || ex.stato === 'accettata')) return err('Esiste già una richiesta per questa matricola.');
+  creaRichiestaAvvio({ matricola: m, centro_id: cid, nome: g('rqNome'), telefono: g('rqTel'), email: g('rqMail'), indirizzo: g('rqInd'), note: g('rqNote'), codice_prodotto: cp, privacy: true, marketing: document.getElementById('rqMkt').checked, da_installatore: { id: me.id, ragione: me.ragione, referente: me.referente } });
+  const nome = getCentro(cid).nome; draw();
+  const mm = document.getElementById('rqMsg'); mm.style.color = 'var(--ok)'; mm.textContent = `Richiesta inviata a ${nome}. Il cliente riceverà una email di conferma all'indirizzo inserito (demo).`;
+});
+draw();
 </script>
 </body>
 </html>
